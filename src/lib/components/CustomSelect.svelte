@@ -263,7 +263,7 @@
 		z-index: 500;
 		min-width: 100%;
 		width: max-content;
-		max-width: min(320px, calc(100vw - 32px));
+		max-width: 320px;
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md);
 		background: var(--surface);
