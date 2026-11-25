@@ -1065,7 +1065,8 @@ svg {
 	max-width: 100%;
 	min-width: 0;
 	background: var(--bg);
-	overflow-x: clip;
+	overflow-x: hidden;
+	-webkit-overflow-scrolling: touch;
 }
 
 /* App Toast Alert */
@@ -3581,6 +3582,15 @@ svg {
 		padding: 16px 12px calc(88px + env(safe-area-inset-bottom, 0px));
 	}
 
+	.cockpit-main > section,
+	.accounts-hub,
+	.analytics-grid,
+	.insights-grid,
+	.transactions-hub {
+		min-width: 0;
+		max-width: 100%;
+	}
+
 	.overview-title-bar {
 		flex-direction: column;
 		align-items: flex-start;
@@ -3813,8 +3823,8 @@ svg {
 	}
 
 	.segmented-pills button {
-		flex: 1;
-		min-width: max-content;
+		flex: 1 1 0;
+		min-width: 0;
 		padding: 0 8px;
 		height: 32px;
 		font-size: 12px;
@@ -3881,10 +3891,34 @@ svg {
 		overflow-x: auto;
 		-webkit-overflow-scrolling: touch;
 		overscroll-behavior-x: contain;
+		contain: inline-size;
 	}
 
 	.ledger-table {
-		min-width: 580px;
+		width: 100%;
+		min-width: 0;
+		table-layout: fixed;
+	}
+
+	.ledger-table .th-cat,
+	.ledger-table .td-cat,
+	.ledger-table .th-acc,
+	.ledger-table .td-acc {
+		display: none;
+	}
+
+	.ledger-table .th-desc,
+	.ledger-table .td-desc {
+		width: auto;
+	}
+
+	.ledger-table .desc-content {
+		max-width: none;
+	}
+
+	.ledger-table .th-amt,
+	.ledger-table .td-amt {
+		width: 28%;
 	}
 
 	.ledger-table th,
@@ -3999,6 +4033,19 @@ svg {
 @media (max-width: 440px) {
 	.cockpit-brand .brand-title {
 		display: none;
+	}
+
+	.command-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.command-card.hero-net {
+		grid-column: auto;
+	}
+
+	.overview-title-bar .subtitle {
+		overflow-wrap: anywhere;
+		word-break: break-word;
 	}
 }
 
