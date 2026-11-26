@@ -3,6 +3,10 @@
 	import { enhance } from '$app/forms';
 	import type { Wallet, WalletKind } from '#lib/types.ts';
 	import { formatNumberWithDots, parseNumberWithDots } from '#lib/finance.ts';
+	import { cn } from '#lib/utils.ts';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import { Label } from '#lib/components/ui/label/index.ts';
 	import ConfirmDialog from './ConfirmDialog.svelte';
 
 	let {
@@ -20,17 +24,17 @@
 		{ kind: 'cash', label: 'Cash Wallet', icon: '💵' },
 		{ kind: 'card', label: 'Credit/Debit Card', icon: '💳' },
 		{ kind: 'savings', label: 'Savings Deposit', icon: '🐖' },
-		{ kind: 'investment', label: 'Investment / Brokerage', icon: '📈' }
+		{ kind: 'investment', label: 'Investment', icon: '📈' }
 	];
 
 	const COLOR_PALETTE = [
-		'#0f172a', // Midnight Slate
-		'#0284c7', // Sky Cobalt
-		'#059669', // Emerald
-		'#f97316', // Sunset Orange
-		'#8b5cf6', // Violet
-		'#ec4899', // Pink
-		'#64748b'  // Titanium Gray
+		'#0f172a',
+		'#0284c7',
+		'#059669',
+		'#f97316',
+		'#8b5cf6',
+		'#ec4899',
+		'#64748b'
 	];
 
 	const ICONS = ['🏦', '💵', '💳', '🐖', '📈', '🪙', '💼', '🔒'];
@@ -82,27 +86,36 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-	class="modal-backdrop"
+	class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-xs"
 	role="presentation"
 	onclick={(event) => {
 		if (event.target === event.currentTarget && !saving) onclose();
 	}}
 >
-	<div class="modal wallet-modal" role="dialog" aria-modal="true" aria-labelledby="wallet-modal-title">
-		<header class="modal-head">
-			<div>
-				<p class="eyebrow">{wallet ? 'Edit Account' : 'New Account / Wallet'}</p>
-				<h2 id="wallet-modal-title">
+	<div
+		class="bg-card text-card-foreground border-border flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-xl border shadow-xl"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="wallet-modal-title"
+	>
+		<header class="border-border flex items-start justify-between border-b px-6 py-4">
+			<div class="space-y-1">
+				<p class="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
+					{wallet ? 'Edit Account' : 'New Account / Wallet'}
+				</p>
+				<h2 id="wallet-modal-title" class="text-lg font-bold tracking-tight">
 					{wallet ? 'Modify account details' : 'Add where your money lives'}
 				</h2>
 			</div>
-			<button class="modal-close" type="button" aria-label="Close" onclick={onclose}>×</button>
+			<Button variant="ghost" size="icon-sm" aria-label="Close" onclick={onclose}>
+				✕
+			</Button>
 		</header>
 
 		<form
 			method="POST"
 			action="?/saveWallet"
-			class="modal-body"
+			class="flex flex-col gap-5 overflow-y-auto p-6"
 			use:enhance={() => {
 				saving = true;
 				error = null;
@@ -126,56 +139,63 @@
 				<input type="hidden" name="id" value={wallet.id} />
 			{/if}
 
-			<div class="wallet-type-grid">
+			<div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
 				{#each WALLET_KINDS as item (item.kind)}
 					<button
 						type="button"
-						class="wallet-type-btn"
-						class:active={kind === item.kind}
+						class={cn(
+							'border-border bg-card hover:bg-accent flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border px-2 py-3 text-center transition-all',
+							kind === item.kind && 'border-primary bg-primary/5 ring-primary/20 ring-2'
+						)}
 						onclick={() => selectKind(item.kind, item.icon)}
 					>
-						<span class="type-icon">{item.icon}</span>
-						<span class="type-label">{item.label}</span>
+						<span class="text-xl">{item.icon}</span>
+						<span class="text-xs font-semibold">{item.label}</span>
 					</button>
 				{/each}
 			</div>
 			<input type="hidden" name="kind" value={kind} />
 
-			<div class="form-grid">
-				<label class="field field-wide">
-					<span>Account Name</span>
-					<input
+			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+				<div class="space-y-1.5 sm:col-span-2">
+					<Label for="wallet-name">Account Name</Label>
+					<Input
+						id="wallet-name"
 						name="name"
 						bind:value={name}
-						maxlength="50"
+						maxlength={50}
 						placeholder="e.g. BCA Checking, Main Cash, Revolut..."
 						required
 					/>
-				</label>
+				</div>
 
-				<label class="field">
-					<span>Initial / Starting Balance</span>
-					<div class="balance-input-wrap">
-						<span class="curr-prefix">{currency}</span>
+				<div class="space-y-1.5">
+					<Label for="wallet-balance">Initial / Starting Balance</Label>
+					<div class="border-input bg-card focus-within:ring-ring/25 flex h-9 items-center gap-2 rounded-md border px-3 shadow-2xs focus-within:ring-2">
+						<span class="text-muted-foreground text-xs font-bold">{currency}</span>
 						<input type="hidden" name="initialBalance" value={rawInitialBalance} />
 						<input
+							id="wallet-balance"
 							type="text"
 							inputmode="numeric"
 							placeholder="0"
 							value={displayInitialBalance}
 							oninput={handleBalanceInput}
+							class="w-full bg-transparent text-sm font-semibold tabular-nums outline-none"
 						/>
 					</div>
-				</label>
+				</div>
 
-				<div class="field">
-					<span>Account Icon</span>
-					<div class="icon-presets">
-						{#each ICONS as ic}
+				<div class="space-y-1.5">
+					<Label>Account Icon</Label>
+					<div class="flex flex-wrap gap-1.5">
+						{#each ICONS as ic (ic)}
 							<button
 								type="button"
-								class="ic-btn"
-								class:active={icon === ic}
+								class={cn(
+									'border-border bg-card hover:bg-accent flex size-8 cursor-pointer items-center justify-center rounded-md border text-base transition-transform',
+									icon === ic && 'border-primary bg-primary/5 scale-105 ring-2 ring-primary/20'
+								)}
 								onclick={() => (icon = ic)}
 							>
 								{ic}
@@ -185,14 +205,16 @@
 					<input type="hidden" name="icon" value={icon} />
 				</div>
 
-				<div class="field field-wide">
-					<span>Theme Color</span>
-					<div class="color-swatches-row">
-						{#each COLOR_PALETTE as c}
+				<div class="space-y-1.5 sm:col-span-2">
+					<Label>Theme Color</Label>
+					<div class="flex flex-wrap items-center gap-2.5">
+						{#each COLOR_PALETTE as c (c)}
 							<button
 								type="button"
-								class="swatch-circle"
-								class:active={color === c}
+								class={cn(
+									'size-7 cursor-pointer rounded-full border-2 border-transparent transition-transform hover:scale-110',
+									color === c && 'border-foreground scale-115 ring-2 ring-offset-2 ring-foreground/20'
+								)}
 								style={`background: ${c}`}
 								aria-label={`Color ${c}`}
 								onclick={() => (color = c)}
@@ -204,36 +226,37 @@
 			</div>
 
 			{#if error}
-				<div class="form-error" role="alert">
-					<span>!</span>
+				<div class="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700" role="alert">
+					<span class="flex size-4 shrink-0 items-center justify-center rounded-full bg-rose-600 text-[10px] font-bold text-white">!</span>
 					<p>{error}</p>
 				</div>
 			{/if}
 
-			<footer class="modal-foot">
-				<div class="modal-foot-left">
+			<footer class="border-border flex flex-col-reverse gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+				<div>
 					{#if wallet}
-						<button
-							type="button"
-							class="btn-delete-wallet-link"
+						<Button
+							variant="ghost"
+							size="sm"
+							class="text-destructive hover:bg-rose-50 hover:text-rose-700 px-2"
 							onclick={() => (showDeleteConfirm = true)}
 							disabled={saving || isDeleting}
 						>
 							Delete account
-						</button>
+						</Button>
 					{:else}
-						<p class="modal-hint">
+						<p class="text-muted-foreground text-xs">
 							Saved directly to your Google Sheet Wallets tab
 						</p>
 					{/if}
 				</div>
-				<div class="modal-actions">
-					<button type="button" class="ghost-button" onclick={onclose} disabled={saving || isDeleting}>
+				<div class="flex items-center justify-end gap-2">
+					<Button variant="outline" onclick={onclose} disabled={saving || isDeleting}>
 						Cancel
-					</button>
-					<button type="submit" class="primary-button" disabled={saving || isDeleting}>
+					</Button>
+					<Button type="submit" disabled={saving || isDeleting}>
 						{saving ? 'Saving…' : wallet ? 'Save changes' : 'Create Account'}
-					</button>
+					</Button>
 				</div>
 			</footer>
 		</form>
@@ -269,179 +292,3 @@
 		oncancel={() => (showDeleteConfirm = false)}
 	/>
 {/if}
-
-<style>
-	.modal-foot-left {
-		display: flex;
-		align-items: center;
-	}
-
-	.btn-delete-wallet-link {
-		background: transparent;
-		border: none;
-		color: #ef4444;
-		font-size: 12px;
-		font-weight: 600;
-		cursor: pointer;
-		padding: 4px 8px;
-		border-radius: var(--radius-sm);
-		transition: background 120ms ease;
-	}
-
-	.btn-delete-wallet-link:hover:not(:disabled) {
-		background: #fef2f2;
-	}
-
-	.btn-delete-wallet-link:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	.wallet-modal {
-		max-width: 600px;
-	}
-
-	.wallet-type-grid {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: 8px;
-		margin-bottom: 20px;
-	}
-
-	.wallet-type-btn {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 6px;
-		padding: 12px 8px;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		background: var(--surface);
-		cursor: pointer;
-		text-align: center;
-		transition: all 120ms ease;
-	}
-
-	.wallet-type-btn:hover {
-		background: var(--surface-hover);
-		border-color: var(--border-strong);
-	}
-
-	.wallet-type-btn.active {
-		border-color: var(--theme-accent);
-		background: var(--bg-subtle);
-		box-shadow: 0 0 0 1px var(--theme-accent);
-	}
-
-	.type-icon {
-		font-size: 20px;
-	}
-
-	.type-label {
-		font-size: 11px;
-		font-weight: 600;
-		color: var(--ink);
-	}
-
-	.balance-input-wrap {
-		display: flex;
-		align-items: center;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		background: var(--surface);
-		height: 40px;
-		padding: 0 12px;
-		gap: 8px;
-	}
-
-	.curr-prefix {
-		font-size: 12px;
-		font-weight: 700;
-		color: var(--muted);
-	}
-
-	.balance-input-wrap input {
-		width: 100%;
-		border: none;
-		background: transparent;
-		font-size: 14px;
-		font-weight: 700;
-		font-variant-numeric: tabular-nums;
-		outline: none;
-	}
-
-	.icon-presets {
-		display: flex;
-		gap: 6px;
-		flex-wrap: wrap;
-	}
-
-	.ic-btn {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 32px;
-		height: 32px;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		background: var(--surface);
-		font-size: 16px;
-		cursor: pointer;
-		transition: all 120ms ease;
-	}
-
-	.ic-btn:hover {
-		background: var(--surface-hover);
-	}
-
-	.ic-btn.active {
-		border-color: var(--theme-accent);
-		background: var(--bg-subtle);
-		transform: scale(1.08);
-	}
-
-	.color-swatches-row {
-		display: flex;
-		gap: 10px;
-		align-items: center;
-		flex-wrap: wrap;
-	}
-
-	.swatch-circle {
-		width: 28px;
-		height: 28px;
-		border-radius: 50%;
-		border: 2px solid transparent;
-		cursor: pointer;
-		transition: transform 120ms ease;
-	}
-
-	.swatch-circle:hover {
-		transform: scale(1.1);
-	}
-
-	.swatch-circle.active {
-		border-color: var(--ink);
-		transform: scale(1.15);
-	}
-
-	@media (max-width: 520px) {
-		.wallet-type-grid {
-			grid-template-columns: repeat(2, 1fr);
-		}
-
-		.form-grid {
-			grid-template-columns: 1fr;
-		}
-
-		.modal-foot-left {
-			width: 100%;
-			justify-content: center;
-		}
-
-		.btn-delete-wallet-link {
-			padding: 8px 12px;
-		}
-	}
-</style>

@@ -2,6 +2,10 @@
 	import { enhance } from '$app/forms';
 	import type { Category } from '#lib/types.ts';
 	import { formatMoney, formatNumberWithDots, parseNumberWithDots } from '#lib/finance.ts';
+	import { cn } from '#lib/utils.ts';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import { Label } from '#lib/components/ui/label/index.ts';
 	import ConfirmDialog from './ConfirmDialog.svelte';
 
 	let {
@@ -102,185 +106,157 @@
 	function handleKeydown(event: KeyboardEvent) {
 		if (event.key === 'Escape' && !saving) onclose();
 	}
+
+	let activeList = $derived(activeTab === 'expense' ? expenseCategories : incomeCategories);
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-	class="modal-backdrop"
+	class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-xs"
 	role="presentation"
 	onclick={(event) => {
 		if (event.target === event.currentTarget && !saving) onclose();
 	}}
 >
 	<div
-		class="modal category-modal-window"
+		class="bg-card text-card-foreground border-border flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border shadow-xl"
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="category-modal-title"
 	>
-		<header class="cat-modal-header">
-			<div>
-				<span class="cat-eyebrow">Categories & Budgets</span>
-				<h2 id="category-modal-title">Shape how your money is organised</h2>
+		<header class="border-border flex items-start justify-between border-b px-5 py-4 sm:px-7 sm:py-5">
+			<div class="space-y-1">
+				<span class="text-muted-foreground text-[11px] font-bold tracking-wider uppercase">
+					Categories & Budgets
+				</span>
+				<h2 id="category-modal-title" class="text-lg font-bold tracking-tight sm:text-xl">
+					Shape how your money is organised
+				</h2>
 			</div>
-			<button class="cat-close-btn" type="button" aria-label="Close" onclick={onclose}>×</button>
+			<Button variant="ghost" size="icon-sm" aria-label="Close" onclick={onclose}>
+				✕
+			</Button>
 		</header>
 
-		<div class="cat-manager-grid">
+		<div class="grid grid-cols-1 gap-6 overflow-y-auto p-5 sm:p-7 md:grid-cols-[1.15fr_0.85fr]">
 			<!-- Left Column: Category List -->
-			<div class="cat-list-column">
-				<!-- Segmented Tabs for Expenses / Income -->
-				<div class="cat-tabs-nav" role="tablist" aria-label="Category type filter">
+			<div class="flex flex-col gap-4">
+				<div class="bg-muted grid grid-cols-2 gap-1 rounded-lg p-1" role="tablist" aria-label="Category type filter">
 					<button
 						type="button"
-						class="cat-tab-btn"
-						class:active={activeTab === 'expense'}
+						class={cn(
+							'flex h-8 cursor-pointer items-center justify-center gap-2 rounded-md text-xs font-semibold transition-all',
+							activeTab === 'expense'
+								? 'bg-card text-foreground shadow-2xs'
+								: 'text-muted-foreground hover:text-foreground'
+						)}
 						role="tab"
 						aria-selected={activeTab === 'expense'}
 						onclick={() => (activeTab = 'expense')}
 					>
 						<span>Expenses</span>
-						<span class="count-pill">{expenseCategories.length}</span>
+						<span class="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
+							{expenseCategories.length}
+						</span>
 					</button>
 					<button
 						type="button"
-						class="cat-tab-btn"
-						class:active={activeTab === 'income'}
+						class={cn(
+							'flex h-8 cursor-pointer items-center justify-center gap-2 rounded-md text-xs font-semibold transition-all',
+							activeTab === 'income'
+								? 'bg-card text-foreground shadow-2xs'
+								: 'text-muted-foreground hover:text-foreground'
+						)}
 						role="tab"
 						aria-selected={activeTab === 'income'}
 						onclick={() => (activeTab = 'income')}
 					>
 						<span>Income Sources</span>
-						<span class="count-pill">{incomeCategories.length}</span>
+						<span class="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
+							{incomeCategories.length}
+						</span>
 					</button>
 				</div>
 
-				{#if activeTab === 'expense'}
-					<!-- Expenses Group -->
-					<div class="cat-group-section">
-						<div class="cat-items-list">
-							{#each expenseCategories as category (category.id)}
-								<div class="category-card" class:is-editing={editingId === category.id}>
-									<div class="card-identity">
-										<span class="emoji-avatar" style={`background: ${category.color}20`}>
-											{category.emoji}
-										</span>
-										<div class="identity-texts">
-											<strong class="cat-title">{category.name}</strong>
-											{#if category.budget > 0}
-												<span class="budget-badge active">
-													Limit: {formatMoney(category.budget, currency)}/mo
-												</span>
-											{:else}
-												<span class="budget-badge none">No budget limit</span>
-											{/if}
-										</div>
-									</div>
-
-									<div class="card-controls">
-										<button
-											type="button"
-											class="btn-row-icon-action"
-											data-tooltip="Edit"
-											title="Edit category"
-											aria-label={`Edit ${category.name}`}
-											onclick={() => startEdit(category)}
-										>
-											<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-												<path d="M11.5 2.5a1.77 1.77 0 0 1 2.5 2.5L5 14H2v-3l9.5-8.5z" />
-											</svg>
-										</button>
-										<button
-											type="button"
-											class="btn-row-icon-action del"
-											data-tooltip="Delete"
-											title="Delete category"
-											aria-label={`Delete ${category.name}`}
-											onclick={() => (deletingCategory = category)}
-										>
-											<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-												<path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M13 4.5v9a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3 13.5v-9" />
-												<path d="M6.5 7.5v4M9.5 7.5v4" />
-											</svg>
-										</button>
-									</div>
+				<div class="max-h-[280px] space-y-2 overflow-y-auto pr-1 md:max-h-[420px]">
+					{#each activeList as category (category.id)}
+						<div
+							class={cn(
+								'border-border bg-card hover:bg-accent/40 flex items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 transition-colors',
+								editingId === category.id && 'border-primary bg-primary/5 ring-1 ring-primary/20'
+							)}
+						>
+							<div class="flex min-w-0 items-center gap-3">
+								<span
+									class="flex size-9 shrink-0 items-center justify-center rounded-md text-lg"
+									style={`background: ${category.color}20`}
+								>
+									{category.emoji}
+								</span>
+								<div class="flex min-w-0 flex-col">
+									<strong class="truncate text-sm font-semibold">{category.name}</strong>
+									{#if category.type === 'expense'}
+										{#if category.budget > 0}
+											<span class="text-xs font-medium text-emerald-700">
+												Limit: {formatMoney(category.budget, currency)}/mo
+											</span>
+										{:else}
+											<span class="text-muted-foreground text-xs">No budget limit</span>
+										{/if}
+									{:else}
+										<span class="text-muted-foreground text-xs">Income Category</span>
+									{/if}
 								</div>
-							{/each}
+							</div>
 
-							{#if expenseCategories.length === 0}
-								<div class="empty-cat-placeholder">
-									<span>No expense categories yet</span>
-								</div>
-							{/if}
+							<div class="flex shrink-0 items-center gap-1">
+								<Button
+									variant="outline"
+									size="icon-sm"
+									title="Edit category"
+									aria-label={`Edit ${category.name}`}
+									onclick={() => startEdit(category)}
+								>
+									<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+										<path d="M11.5 2.5a1.77 1.77 0 0 1 2.5 2.5L5 14H2v-3l9.5-8.5z" />
+									</svg>
+								</Button>
+								<Button
+									variant="outline"
+									size="icon-sm"
+									class="text-destructive hover:bg-rose-50 hover:text-rose-700"
+									title="Delete category"
+									aria-label={`Delete ${category.name}`}
+									onclick={() => (deletingCategory = category)}
+								>
+									<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+										<path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M13 4.5v9a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3 13.5v-9" />
+										<path d="M6.5 7.5v4M9.5 7.5v4" />
+									</svg>
+								</Button>
+							</div>
 						</div>
-					</div>
-				{:else}
-					<!-- Income Group -->
-					<div class="cat-group-section">
-						<div class="cat-items-list">
-							{#each incomeCategories as category (category.id)}
-								<div class="category-card" class:is-editing={editingId === category.id}>
-									<div class="card-identity">
-										<span class="emoji-avatar" style={`background: ${category.color}20`}>
-											{category.emoji}
-										</span>
-										<div class="identity-texts">
-											<strong class="cat-title">{category.name}</strong>
-											<span class="budget-badge income">Income Category</span>
-										</div>
-									</div>
+					{/each}
 
-									<div class="card-controls">
-										<button
-											type="button"
-											class="btn-row-icon-action"
-											data-tooltip="Edit"
-											title="Edit category"
-											aria-label={`Edit ${category.name}`}
-											onclick={() => startEdit(category)}
-										>
-											<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-												<path d="M11.5 2.5a1.77 1.77 0 0 1 2.5 2.5L5 14H2v-3l9.5-8.5z" />
-											</svg>
-										</button>
-										<button
-											type="button"
-											class="btn-row-icon-action del"
-											data-tooltip="Delete"
-											title="Delete category"
-											aria-label={`Delete ${category.name}`}
-											onclick={() => (deletingCategory = category)}
-										>
-											<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-												<path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M13 4.5v9a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3 13.5v-9" />
-												<path d="M6.5 7.5v4M9.5 7.5v4" />
-											</svg>
-										</button>
-									</div>
-								</div>
-							{/each}
-
-							{#if incomeCategories.length === 0}
-								<div class="empty-cat-placeholder">
-									<span>No income sources yet</span>
-								</div>
-							{/if}
+					{#if activeList.length === 0}
+						<div class="border-border text-muted-foreground rounded-lg border border-dashed py-10 text-center text-xs">
+							{activeTab === 'expense' ? 'No expense categories yet' : 'No income sources yet'}
 						</div>
-					</div>
-				{/if}
+					{/if}
+				</div>
 
-				<p class="cat-footnote">
+				<p class="text-muted-foreground text-xs leading-relaxed">
 					Deleting a category does not delete past transactions — they simply display as uncategorized.
 				</p>
 			</div>
 
 			<!-- Right Column: Add / Edit Form -->
-			<div class="cat-form-column">
+			<div>
 				<form
 					method="POST"
 					action="?/saveCategory"
-					class="cat-form-card"
+					class="border-border bg-muted/40 flex flex-col gap-4 rounded-xl border p-5"
 					use:enhance={() => {
 						saving = true;
 						error = null;
@@ -306,20 +282,24 @@
 						<input type="hidden" name="id" value={editingId} />
 					{/if}
 
-					<div class="form-title-bar">
-						<h3>{editingCategory ? 'Edit category' : 'New category'}</h3>
+					<div class="flex items-center justify-between">
+						<h3 class="text-sm font-bold">{editingCategory ? 'Edit category' : 'New category'}</h3>
 						{#if editingCategory}
-							<button type="button" class="btn-cancel-edit" onclick={resetForm}>
+							<Button variant="link" size="sm" class="h-auto p-0 text-xs" onclick={resetForm}>
 								Cancel edit
-							</button>
+							</Button>
 						{/if}
 					</div>
 
-					<div class="type-segmented-wrap" role="group" aria-label="Category type">
+					<div class="bg-card border-border grid grid-cols-2 gap-1 rounded-lg border p-1" role="group" aria-label="Category type">
 						<button
 							type="button"
-							class="type-pill"
-							class:active={type === 'expense'}
+							class={cn(
+								'h-8 cursor-pointer rounded-md text-xs font-semibold transition-all',
+								type === 'expense'
+									? 'bg-primary text-primary-foreground shadow-2xs'
+									: 'text-muted-foreground hover:text-foreground'
+							)}
 							onclick={() => {
 								type = 'expense';
 								activeTab = 'expense';
@@ -329,8 +309,12 @@
 						</button>
 						<button
 							type="button"
-							class="type-pill"
-							class:active={type === 'income'}
+							class={cn(
+								'h-8 cursor-pointer rounded-md text-xs font-semibold transition-all',
+								type === 'income'
+									? 'bg-primary text-primary-foreground shadow-2xs'
+									: 'text-muted-foreground hover:text-foreground'
+							)}
 							onclick={() => {
 								type = 'income';
 								activeTab = 'income';
@@ -341,40 +325,43 @@
 					</div>
 					<input type="hidden" name="type" value={type} />
 
-					<div class="form-inputs-stack">
-						<div class="emoji-name-grid">
-							<label class="form-field-unit emoji-unit">
-								<span class="field-label">Emoji</span>
-								<input
+					<div class="flex flex-col gap-3.5">
+						<div class="grid grid-cols-[64px_1fr] gap-2.5">
+							<div class="space-y-1.5">
+								<Label for="cat-emoji">Emoji</Label>
+								<Input
+									id="cat-emoji"
 									name="emoji"
 									bind:value={emoji}
-									maxlength="8"
-									class="emoji-input-box"
+									maxlength={8}
+									class="text-center text-lg"
 									aria-label="Category emoji"
 								/>
-							</label>
+							</div>
 
-							<label class="form-field-unit name-unit">
-								<span class="field-label">Name</span>
-								<input
+							<div class="space-y-1.5">
+								<Label for="cat-name">Name</Label>
+								<Input
+									id="cat-name"
 									name="name"
 									bind:value={name}
-									maxlength="40"
+									maxlength={40}
 									placeholder="e.g. Coffee, Groceries..."
-									class="text-input-box"
 									required
 								/>
-							</label>
+							</div>
 						</div>
 
-						<div class="form-field-unit">
-							<span class="field-label">Color Tag</span>
-							<div class="palette-swatches-grid">
+						<div class="space-y-1.5">
+							<Label>Color Tag</Label>
+							<div class="flex flex-wrap gap-2">
 								{#each PALETTE as swatch (swatch)}
 									<button
 										type="button"
-										class="palette-swatch"
-										class:is-active={color === swatch}
+										class={cn(
+											'size-6 cursor-pointer rounded-full border-2 border-transparent transition-transform hover:scale-110',
+											color === swatch && 'border-foreground scale-115 ring-2 ring-offset-1 ring-foreground/20'
+										)}
 										style={`background: ${swatch}`}
 										aria-label={`Use colour ${swatch}`}
 										onclick={() => (color = swatch)}
@@ -385,41 +372,44 @@
 						</div>
 
 						{#if type === 'expense'}
-							<label class="form-field-unit">
-								<span class="field-label">
-									Monthly Budget Limit <em class="optional-label">(optional)</em>
-								</span>
-								<div class="budget-input-wrapper">
-									<span class="currency-tag">{currency}</span>
+							<div class="space-y-1.5">
+								<Label for="cat-budget">
+									Monthly Budget Limit <span class="text-muted-foreground font-normal">(optional)</span>
+								</Label>
+								<div class="border-input bg-card focus-within:ring-ring/25 flex h-9 items-center gap-2 rounded-md border px-3 shadow-2xs focus-within:ring-2">
+									<span class="text-muted-foreground text-xs font-bold">{currency}</span>
 									<input type="hidden" name="budget" value={rawBudget} />
 									<input
+										id="cat-budget"
 										type="text"
 										inputmode="numeric"
 										placeholder="0"
-										class="budget-num-input"
+										class="w-full bg-transparent text-sm font-semibold tabular-nums outline-none"
 										value={displayBudget}
 										oninput={handleBudgetInput}
 									/>
 								</div>
-							</label>
+							</div>
 						{:else}
 							<input type="hidden" name="budget" value="0" />
 						{/if}
 					</div>
 
 					{#if error}
-						<div class="cat-form-error" role="alert">
-							<span>!</span>
+						<div class="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700" role="alert">
+							<span class="font-bold">!</span>
 							<p>{error}</p>
 						</div>
 					{/if}
 
-					<div class="form-action-footer">
-						<button type="submit" class="btn-submit-category" disabled={saving}>
+					<div class="space-y-2 pt-1">
+						<Button type="submit" class="w-full" disabled={saving}>
 							{saving ? 'Saving…' : editingCategory ? 'Save changes' : 'Add category'}
-						</button>
+						</Button>
 						{#if savedFlash}
-							<p class="saved-indicator" role="status">✓ Saved to Google Sheet</p>
+							<p class="text-center text-xs font-semibold text-emerald-700" role="status">
+								✓ Saved to Google Sheet
+							</p>
 						{/if}
 					</div>
 				</form>
@@ -459,477 +449,3 @@
 	onconfirm={executeDeleteCategory}
 	oncancel={() => (deletingCategory = null)}
 />
-
-<style>
-	.category-modal-window {
-		width: 100%;
-		max-width: 920px;
-		max-height: 90vh;
-		background: var(--surface);
-		border-radius: var(--radius-xl);
-		border: 1px solid var(--border);
-		box-shadow: var(--shadow-xl);
-		overflow: hidden;
-		display: flex;
-		flex-direction: column;
-	}
-
-	.cat-modal-header {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		padding: 24px 28px 18px;
-		border-bottom: 1px solid var(--border);
-		background: var(--surface);
-	}
-
-	.cat-eyebrow {
-		font-size: 11px;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: var(--muted);
-	}
-
-	.cat-modal-header h2 {
-		margin: 4px 0 0;
-		font-size: 20px;
-		font-weight: 800;
-		letter-spacing: -0.025em;
-		color: var(--ink);
-	}
-
-	.cat-close-btn {
-		width: 32px;
-		height: 32px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		border-radius: var(--radius-sm);
-		font-size: 20px;
-		color: var(--muted);
-		transition: background 120ms ease, color 120ms ease;
-	}
-
-	.cat-close-btn:hover {
-		background: var(--surface-hover);
-		color: var(--ink);
-	}
-
-	.cat-manager-grid {
-		display: grid;
-		grid-template-columns: 1.15fr 0.85fr;
-		gap: 28px;
-		padding: 24px 28px;
-		overflow-y: auto;
-		background: var(--surface);
-	}
-
-	/* Left List Column */
-	.cat-list-column {
-		max-height: 540px;
-		overflow-y: auto;
-		padding-right: 8px;
-	}
-
-	.cat-tabs-nav {
-		display: flex;
-		align-items: center;
-		padding: 3px;
-		background: var(--bg-subtle);
-		border-radius: var(--radius-md);
-		gap: 3px;
-		margin-bottom: 16px;
-	}
-
-	.cat-tab-btn {
-		flex: 1;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 8px;
-		height: 32px;
-		border: none;
-		border-radius: var(--radius-sm);
-		background: transparent;
-		color: var(--muted);
-		font-size: 12.5px;
-		font-weight: 600;
-		cursor: pointer;
-		transition: all 120ms ease;
-	}
-
-	.cat-tab-btn:hover {
-		color: var(--ink);
-	}
-
-	.cat-tab-btn.active {
-		background: var(--surface);
-		color: var(--ink);
-		box-shadow: var(--shadow-xs);
-	}
-
-	.cat-tab-btn .count-pill {
-		font-size: 10px;
-		font-weight: 600;
-		padding: 1px 6px;
-		border-radius: var(--radius-full);
-		background: var(--bg-subtle);
-		color: var(--muted);
-	}
-
-	.cat-tab-btn.active .count-pill {
-		background: var(--bg);
-		color: var(--ink);
-	}
-
-	.empty-cat-placeholder {
-		padding: 36px 16px;
-		text-align: center;
-		border: 1px dashed var(--border);
-		border-radius: var(--radius-md);
-		color: var(--muted-light);
-		font-size: 12.5px;
-	}
-
-	.cat-group-section {
-		margin-bottom: 24px;
-	}
-
-	.count-pill {
-		font-size: 10px;
-		font-weight: 600;
-		padding: 1px 7px;
-		border-radius: var(--radius-full);
-		background: var(--bg-subtle);
-		color: var(--muted);
-	}
-
-	.cat-items-list {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-	}
-
-	.category-card {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 10px 14px;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		background: var(--surface);
-		transition: border-color 140ms ease, background 140ms ease;
-	}
-
-	.category-card:hover {
-		border-color: var(--border-strong);
-		background: var(--surface-hover);
-	}
-
-	.category-card.is-editing {
-		border-color: var(--theme-accent);
-		background: var(--theme-accent-soft);
-	}
-
-	.card-identity {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-	}
-
-	.emoji-avatar {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 34px;
-		height: 34px;
-		border-radius: var(--radius-sm);
-		font-size: 17px;
-		flex-shrink: 0;
-	}
-
-	.identity-texts {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-
-	.cat-title {
-		font-size: 13.5px;
-		font-weight: 650;
-		color: var(--ink);
-	}
-
-	.budget-badge {
-		font-size: 11px;
-		font-weight: 550;
-	}
-
-	.budget-badge.active {
-		color: var(--green-deep);
-		font-weight: 600;
-	}
-
-	.budget-badge.none {
-		color: var(--muted-light);
-	}
-
-	.budget-badge.income {
-		color: var(--muted);
-	}
-
-	.card-controls {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-	}
-
-	.cat-footnote {
-		margin: 16px 0 0;
-		font-size: 11.5px;
-		color: var(--muted);
-		line-height: 1.5;
-	}
-
-	/* Right Form Column */
-	.cat-form-card {
-		padding: 22px;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-lg);
-		background: var(--bg-subtle);
-		display: flex;
-		flex-direction: column;
-		gap: 16px;
-	}
-
-	.form-title-bar {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-	}
-
-	.form-title-bar h3 {
-		margin: 0;
-		font-size: 15px;
-		font-weight: 750;
-		color: var(--ink);
-	}
-
-	.btn-cancel-edit {
-		font-size: 11.5px;
-		font-weight: 600;
-		color: var(--muted);
-		text-decoration: underline;
-	}
-
-	.type-segmented-wrap {
-		display: flex;
-		padding: 3px;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		background: var(--surface);
-	}
-
-	.type-pill {
-		flex: 1;
-		height: 32px;
-		border-radius: var(--radius-sm);
-		font-size: 12.5px;
-		font-weight: 600;
-		color: var(--muted);
-		transition: all 120ms ease;
-	}
-
-	.type-pill.active {
-		background: var(--theme-primary);
-		color: #ffffff;
-		box-shadow: var(--shadow-xs);
-	}
-
-	.form-inputs-stack {
-		display: flex;
-		flex-direction: column;
-		gap: 14px;
-	}
-
-	.form-field-unit {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-	}
-
-	.field-label {
-		font-size: 11.5px;
-		font-weight: 700;
-		color: var(--ink-soft);
-	}
-
-	.optional-label {
-		font-weight: 400;
-		font-style: normal;
-		color: var(--muted);
-	}
-
-	.emoji-name-grid {
-		display: grid;
-		grid-template-columns: 68px 1fr;
-		gap: 10px;
-	}
-
-	.emoji-input-box {
-		height: 38px;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		background: var(--surface);
-		font-size: 18px;
-		text-align: center;
-		outline: none;
-	}
-
-	.text-input-box {
-		height: 38px;
-		padding: 0 12px;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		background: var(--surface);
-		font-size: 13px;
-		outline: none;
-	}
-
-	.emoji-input-box:focus,
-	.text-input-box:focus,
-	.budget-num-input:focus {
-		border-color: var(--theme-accent);
-	}
-
-	.palette-swatches-grid {
-		display: flex;
-		gap: 7px;
-		flex-wrap: wrap;
-	}
-
-	.palette-swatch {
-		width: 24px;
-		height: 24px;
-		border-radius: 50%;
-		border: 2px solid transparent;
-		cursor: pointer;
-		transition: transform 120ms ease;
-	}
-
-	.palette-swatch:hover {
-		transform: scale(1.15);
-	}
-
-	.palette-swatch.is-active {
-		border-color: var(--ink);
-		transform: scale(1.2);
-	}
-
-	.budget-input-wrapper {
-		display: flex;
-		align-items: center;
-		height: 38px;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		background: var(--surface);
-		padding: 0 12px;
-		gap: 6px;
-	}
-
-	.currency-tag {
-		font-size: 12px;
-		font-weight: 700;
-		color: var(--muted);
-	}
-
-	.budget-num-input {
-		width: 100%;
-		border: none;
-		background: transparent;
-		font-size: 13.5px;
-		font-weight: 600;
-		font-variant-numeric: tabular-nums;
-		outline: none;
-	}
-
-	.cat-form-error {
-		padding: 8px 12px;
-		border: 1px solid var(--danger-border);
-		border-radius: var(--radius-md);
-		background: var(--danger-soft);
-		color: var(--danger-deep);
-		font-size: 12px;
-	}
-
-	.btn-submit-category {
-		height: 40px;
-		width: 100%;
-		border-radius: var(--radius-md);
-		background: var(--theme-primary);
-		color: #ffffff;
-		font-size: 13px;
-		font-weight: 650;
-		box-shadow: var(--shadow-sm);
-		transition: all 120ms ease;
-	}
-
-	.btn-submit-category:hover:not(:disabled) {
-		background: var(--theme-primary-hover);
-		transform: translateY(-1px);
-	}
-
-	.saved-indicator {
-		margin: 6px 0 0;
-		font-size: 12px;
-		color: var(--green-deep);
-		font-weight: 600;
-		text-align: center;
-	}
-
-	@media (max-width: 800px) {
-		.cat-modal-header {
-			padding: 16px 18px 12px;
-		}
-
-		.cat-modal-header h2 {
-			font-size: 16px;
-		}
-
-		.cat-manager-grid {
-			grid-template-columns: 1fr;
-			padding: 16px;
-			gap: 20px;
-		}
-
-		.cat-list-column {
-			max-height: 280px;
-			padding-right: 0;
-		}
-
-		.cat-form-card {
-			padding: 16px;
-		}
-	}
-
-	@media (max-width: 480px) {
-		.emoji-name-grid {
-			grid-template-columns: 52px 1fr;
-			gap: 8px;
-		}
-
-		.cat-tab-btn {
-			font-size: 12px;
-			gap: 6px;
-		}
-
-		.category-card {
-			padding: 10px 12px;
-		}
-
-		.card-identity {
-			gap: 8px;
-		}
-	}
-</style>

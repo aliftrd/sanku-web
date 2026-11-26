@@ -4,6 +4,11 @@
 	import type { Category, Transaction, TransactionType, Wallet } from '#lib/types.ts';
 	import CustomSelect from '#lib/components/CustomSelect.svelte';
 	import { formatNumberWithDots, getTransferDestination, parseNumberWithDots } from '#lib/finance.ts';
+	import { cn } from '#lib/utils.ts';
+	import { Button } from '#lib/components/ui/button/index.ts';
+	import { Input } from '#lib/components/ui/input/index.ts';
+	import { Textarea } from '#lib/components/ui/textarea/index.ts';
+	import { Label } from '#lib/components/ui/label/index.ts';
 
 	let {
 		transaction = null,
@@ -108,19 +113,24 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-	class="modal-backdrop"
+	class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-xs"
 	role="presentation"
 	onclick={(event) => {
 		if (event.target === event.currentTarget && !saving) onclose();
 	}}
 >
-	<div class="modal tx-modal" role="dialog" aria-modal="true" aria-labelledby="tx-modal-title">
-		<header class="modal-head">
-			<div>
-				<p class="eyebrow">
+	<div
+		class="bg-card text-card-foreground border-border flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border shadow-xl"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="tx-modal-title"
+	>
+		<header class="border-border flex items-start justify-between border-b px-6 py-4">
+			<div class="space-y-1">
+				<p class="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
 					{isEdit ? 'Edit transaction' : transaction ? 'Duplicate transaction' : type === 'transfer' ? 'Transfer funds' : 'New transaction'}
 				</p>
-				<h2 id="tx-modal-title">
+				<h2 id="tx-modal-title" class="text-lg font-bold tracking-tight">
 					{isEdit
 						? 'Update this entry'
 						: transaction
@@ -130,13 +140,15 @@
 								: 'Record money in or out'}
 				</h2>
 			</div>
-			<button class="modal-close" type="button" aria-label="Close" onclick={onclose}>×</button>
+			<Button variant="ghost" size="icon-sm" aria-label="Close" onclick={onclose}>
+				✕
+			</Button>
 		</header>
 
 		<form
 			method="POST"
 			{action}
-			class="modal-body"
+			class="flex flex-col gap-5 overflow-y-auto p-6"
 			use:enhance={({ cancel }) => {
 				if (type === 'transfer') {
 					if (!account || !toAccount) {
@@ -177,41 +189,62 @@
 				<input type="hidden" name="toAccount" value={toAccount} />
 			{/if}
 
-			<div class="segmented" role="group" aria-label="Transaction type">
+			<!-- Segmented Transaction Type Selector -->
+			<div class="bg-muted grid grid-cols-3 gap-1 rounded-lg p-1" role="group" aria-label="Transaction type">
 				<button
 					type="button"
-					class="segmented-option expense"
-					class:active={type === 'expense'}
+					class={cn(
+						'flex h-8 cursor-pointer items-center justify-center gap-2 rounded-md text-xs font-semibold transition-all',
+						type === 'expense'
+							? 'bg-card text-foreground shadow-2xs'
+							: 'text-muted-foreground hover:text-foreground'
+					)}
 					aria-pressed={type === 'expense'}
 					onclick={() => setType('expense')}
 				>
-					<span class="segmented-dot"></span>
+					<span class="size-2 rounded-full bg-rose-500"></span>
 					Expense
 				</button>
 				<button
 					type="button"
-					class="segmented-option income"
-					class:active={type === 'income'}
+					class={cn(
+						'flex h-8 cursor-pointer items-center justify-center gap-2 rounded-md text-xs font-semibold transition-all',
+						type === 'income'
+							? 'bg-card text-foreground shadow-2xs'
+							: 'text-muted-foreground hover:text-foreground'
+					)}
 					aria-pressed={type === 'income'}
 					onclick={() => setType('income')}
 				>
-					<span class="segmented-dot"></span>
+					<span class="size-2 rounded-full bg-emerald-500"></span>
 					Income
 				</button>
 				<button
 					type="button"
-					class="segmented-option transfer"
-					class:active={type === 'transfer'}
+					class={cn(
+						'flex h-8 cursor-pointer items-center justify-center gap-2 rounded-md text-xs font-semibold transition-all',
+						type === 'transfer'
+							? 'bg-card text-foreground shadow-2xs'
+							: 'text-muted-foreground hover:text-foreground'
+					)}
 					aria-pressed={type === 'transfer'}
 					onclick={() => setType('transfer')}
 				>
-					<span class="segmented-dot"></span>
+					<span class="size-2 rounded-full bg-sky-500"></span>
 					Transfer
 				</button>
 			</div>
 
-			<div class="amount-field" class:income={type === 'income'} class:transfer={type === 'transfer'}>
-				<span class="amount-currency">{currency}</span>
+			<!-- Prominent Amount Input -->
+			<div
+				class={cn(
+					'border-border bg-muted/40 flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors focus-within:ring-2',
+					type === 'income' && 'border-emerald-200 bg-emerald-50/50 focus-within:ring-emerald-500/30',
+					type === 'transfer' && 'border-sky-200 bg-sky-50/50 focus-within:ring-sky-500/30',
+					type === 'expense' && 'focus-within:ring-ring/25'
+				)}
+			>
+				<span class="text-muted-foreground text-sm font-bold">{currency}</span>
 				<input
 					type="hidden"
 					name="amount"
@@ -225,18 +258,25 @@
 					value={displayAmount}
 					oninput={handleAmountInput}
 					required
+					class={cn(
+						'w-full bg-transparent font-mono text-2xl font-bold tabular-nums outline-none placeholder:text-muted-foreground/50',
+						type === 'income' && 'text-emerald-700',
+						type === 'transfer' && 'text-sky-700',
+						type === 'expense' && 'text-foreground'
+					)}
 				/>
 			</div>
 
-			<div class="form-grid">
-				<label class="field">
-					<span>Date</span>
-					<input name="date" bind:value={date} type="date" required />
-				</label>
+			<!-- Form Fields Grid -->
+			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+				<div class="space-y-1.5">
+					<Label for="tx-date">Date</Label>
+					<Input id="tx-date" name="date" bind:value={date} type="date" required />
+				</div>
 
 				{#if type === 'transfer'}
-					<div class="field">
-						<span>From Account</span>
+					<div class="space-y-1.5">
+						<Label>From Account</Label>
 						<CustomSelect
 							bind:value={account}
 							name="account"
@@ -245,8 +285,8 @@
 						/>
 					</div>
 
-					<div class="field">
-						<span>To Account</span>
+					<div class="space-y-1.5 sm:col-span-2">
+						<Label>To Account</Label>
 						<CustomSelect
 							bind:value={toAccount}
 							name="toAccount"
@@ -255,18 +295,21 @@
 						/>
 					</div>
 
-					<label class="field field-wide">
-						<span>Description <em>optional</em></span>
-						<input
+					<div class="space-y-1.5 sm:col-span-2">
+						<Label for="tx-desc">
+							Description <span class="text-muted-foreground font-normal">optional</span>
+						</Label>
+						<Input
+							id="tx-desc"
 							name="description"
 							bind:value={description}
-							maxlength="160"
+							maxlength={160}
 							placeholder={`Transfer: ${account || 'Account'} → ${toAccount || 'Account'}`}
 						/>
-					</label>
+					</div>
 				{:else}
-					<div class="field">
-						<span>Category</span>
+					<div class="space-y-1.5">
+						<Label>Category</Label>
 						<CustomSelect
 							bind:value={categoryId}
 							name="categoryId"
@@ -275,19 +318,20 @@
 						/>
 					</div>
 
-					<label class="field field-wide">
-						<span>Description</span>
-						<input
+					<div class="space-y-1.5 sm:col-span-2">
+						<Label for="tx-desc">Description</Label>
+						<Input
+							id="tx-desc"
 							name="description"
 							bind:value={description}
-							maxlength="160"
+							maxlength={160}
 							placeholder={type === 'income' ? 'Monthly salary' : 'Weekly groceries'}
 							required
 						/>
-					</label>
+					</div>
 
-					<div class="field field-wide">
-						<span>Account / Wallet</span>
+					<div class="space-y-1.5 sm:col-span-2">
+						<Label>Account / Wallet</Label>
 						<CustomSelect
 							bind:value={account}
 							name="account"
@@ -297,38 +341,41 @@
 					</div>
 				{/if}
 
-				<label class="field field-wide">
-					<span>Notes <em>optional</em></span>
-					<textarea
+				<div class="space-y-1.5 sm:col-span-2">
+					<Label for="tx-notes">
+						Notes <span class="text-muted-foreground font-normal">optional</span>
+					</Label>
+					<Textarea
+						id="tx-notes"
 						name="notes"
 						bind:value={notes}
-						maxlength="500"
-						rows="2"
+						maxlength={500}
+						rows={2}
 						placeholder="Anything worth remembering about this entry"
-					></textarea>
-				</label>
+					/>
+				</div>
 			</div>
 
 			{#if error}
-				<div class="form-error" role="alert">
-					<span>!</span>
+				<div class="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700" role="alert">
+					<span class="flex size-4 shrink-0 items-center justify-center rounded-full bg-rose-600 text-[10px] font-bold text-white">!</span>
 					<p>{error}</p>
 				</div>
 			{/if}
 
-			<footer class="modal-foot">
-				<p class="modal-hint">
+			<footer class="border-border flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+				<p class="text-muted-foreground text-xs">
 					{type === 'transfer'
 						? 'Internal move between your accounts'
 						: type === 'income'
 							? 'Money coming in'
-							: 'Money going out'} · saved to your Google Sheet
+							: 'Money going out'} · saved to Google Sheet
 				</p>
-				<div class="modal-actions">
-					<button type="button" class="ghost-button" onclick={onclose} disabled={saving}>
+				<div class="flex items-center justify-end gap-2">
+					<Button variant="outline" onclick={onclose} disabled={saving}>
 						Cancel
-					</button>
-					<button type="submit" class="primary-button" disabled={saving}>
+					</Button>
+					<Button type="submit" disabled={saving}>
 						{saving
 							? 'Saving…'
 							: isEdit
@@ -338,7 +385,7 @@
 									: type === 'transfer'
 										? 'Transfer funds'
 										: `Add ${type}`}
-					</button>
+					</Button>
 				</div>
 			</footer>
 		</form>

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { cn } from '#lib/utils.ts';
+
 	let {
 		value = $bindable(''),
 		options = [],
@@ -66,10 +68,7 @@
 
 <div
 	bind:this={rootEl}
-	class="custom-select-root {className}"
-	class:size-sm={size === 'sm'}
-	class:variant-ghost={variant === 'ghost'}
-	class:is-open={open}
+	class={cn('relative inline-block w-full select-none', className)}
 >
 	{#if name}
 		<input type="hidden" {name} {value} bind:this={hiddenInput} />
@@ -77,68 +76,93 @@
 
 	<button
 		type="button"
-		class="select-trigger"
 		onclick={toggle}
 		aria-haspopup="listbox"
 		aria-expanded={open}
+		class={cn(
+			'text-foreground flex w-full cursor-pointer items-center justify-between gap-2 text-left font-medium transition-colors outline-none',
+			'focus-visible:ring-ring/30 focus-visible:ring-2',
+			variant === 'default' &&
+				'border-input bg-card hover:bg-accent/60 rounded-md border shadow-2xs',
+			variant === 'ghost' && 'hover:bg-accent rounded-md border-transparent bg-transparent',
+			size === 'sm' && (variant === 'ghost' ? 'h-7 px-2 text-xs' : 'h-8 px-2.5 text-xs'),
+			size === 'md' && 'h-9 px-3 text-sm',
+			open && variant === 'default' && 'border-ring/50 bg-accent/40'
+		)}
 	>
-		<div class="trigger-content">
+		<div class="flex min-w-0 items-center gap-2">
 			{#if selectedOption}
 				{#if selectedOption.icon}
-					<span class="opt-icon">{selectedOption.icon}</span>
+					<span class="shrink-0 text-sm leading-none">{selectedOption.icon}</span>
 				{/if}
 				{#if selectedOption.color}
-					<span class="opt-dot" style={`background: ${selectedOption.color}`}></span>
+					<span class="size-2 shrink-0 rounded-full" style={`background: ${selectedOption.color}`}></span>
 				{/if}
-				<span class="trigger-label">{selectedOption.label}</span>
+				<span class="truncate">{selectedOption.label}</span>
 				{#if selectedOption.badge}
-					<span class="opt-badge">{selectedOption.badge}</span>
+					<span class="bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold">
+						{selectedOption.badge}
+					</span>
 				{/if}
 			{:else}
-				<span class="trigger-placeholder">{placeholder}</span>
+				<span class="text-muted-foreground truncate">{placeholder}</span>
 			{/if}
 		</div>
 
-		<svg class="chevron-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
-			<path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+		<svg
+			class={cn('text-muted-foreground size-3.5 shrink-0 transition-transform duration-150', open && 'rotate-180')}
+			viewBox="0 0 16 16"
+			aria-hidden="true"
+		>
+			<path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
 		</svg>
 	</button>
 
 	{#if open}
-		<div class="select-dropdown" class:align-right={align === 'right'} role="listbox">
-			<div class="options-scroller">
+		<div
+			class={cn(
+				'bg-popover text-popover-foreground border-border absolute top-[calc(100%+4px)] z-50 w-max min-w-full max-w-[320px] overflow-hidden rounded-lg border shadow-lg',
+				align === 'right' ? 'right-0 left-auto' : 'left-0'
+			)}
+			role="listbox"
+		>
+			<div class="max-h-60 overflow-y-auto p-1">
 				{#each options as option (option.value)}
 					{@const isSelected = option.value === value}
 					<button
 						type="button"
-						class="option-item"
-						class:selected={isSelected}
+						class={cn(
+							'hover:bg-accent hover:text-accent-foreground flex w-full cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 py-1.5 text-left text-xs sm:text-sm transition-colors',
+							isSelected && 'bg-accent/80 font-semibold'
+						)}
 						role="option"
 						aria-selected={isSelected}
 						onclick={() => select(option.value)}
 					>
-						<div class="opt-left">
+						<div class="flex min-w-0 items-center gap-2">
 							{#if option.icon}
-								<span class="opt-icon">{option.icon}</span>
+								<span class="shrink-0 text-sm leading-none">{option.icon}</span>
 							{/if}
 							{#if option.color}
-								<span class="opt-dot" style={`background: ${option.color}`}></span>
+								<span class="size-2 shrink-0 rounded-full" style={`background: ${option.color}`}></span>
 							{/if}
-							<div class="opt-texts">
-								<span class="opt-label">{option.label}</span>
+							<div class="flex min-w-0 flex-col">
+								<span class="truncate">{option.label}</span>
 								{#if option.subtext}
-									<span class="opt-sub">{option.subtext}</span>
+									<span class="text-muted-foreground text-[11px]">{option.subtext}</span>
 								{/if}
 							</div>
 						</div>
 
-						<div class="opt-right">
+						<div class="flex shrink-0 items-center gap-1.5">
 							{#if option.badge}
-								<span class="opt-badge">{option.badge}</span>
+								<span class="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-semibold">
+									{option.badge}
+								</span>
 							{/if}
 							{#if isSelected}
-								<svg class="check-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-									<path d="M13.5 4.5 6 12 2.5 8.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+								<svg class="text-emerald-600 size-3.5 shrink-0" viewBox="0 0 16 16" aria-hidden="true">
+									<path d="M13.5 4.5 6 12 2.5 8.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
 								</svg>
 							{/if}
 						</div>
@@ -148,201 +172,3 @@
 		</div>
 	{/if}
 </div>
-
-<style>
-	.custom-select-root {
-		position: relative;
-		display: inline-block;
-		user-select: none;
-	}
-
-	.select-trigger {
-		display: inline-flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 8px;
-		height: 36px;
-		padding: 0 12px;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		background: var(--surface);
-		color: var(--ink);
-		font-size: 13px;
-		font-weight: 550;
-		cursor: pointer;
-		width: 100%;
-		text-align: left;
-		box-shadow: var(--shadow-xs);
-		transition: border-color 140ms ease, background 140ms ease;
-	}
-
-	.custom-select-root.size-sm .select-trigger {
-		height: 32px;
-		padding: 0 10px;
-		font-size: 12px;
-		border-radius: var(--radius-sm);
-	}
-
-	.custom-select-root.variant-ghost .select-trigger {
-		height: 26px;
-		padding: 0 6px;
-		border: none;
-		background: transparent;
-		box-shadow: none;
-		border-radius: var(--radius-sm);
-	}
-
-	.select-trigger:hover,
-	.custom-select-root.is-open .select-trigger {
-		border-color: var(--border-strong);
-		background: var(--surface-hover);
-	}
-
-	.custom-select-root.variant-ghost .select-trigger:hover,
-	.custom-select-root.variant-ghost.is-open .select-trigger {
-		background: var(--surface-hover);
-		border-color: transparent;
-	}
-
-	.trigger-content {
-		display: flex;
-		align-items: center;
-		gap: 7px;
-		overflow: hidden;
-		white-space: nowrap;
-		text-overflow: ellipsis;
-	}
-
-	.trigger-label {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.trigger-placeholder {
-		color: var(--muted-light);
-	}
-
-	.chevron-icon {
-		color: var(--muted);
-		flex-shrink: 0;
-		transition: transform 140ms ease;
-	}
-
-	.custom-select-root.is-open .chevron-icon {
-		transform: rotate(180deg);
-	}
-
-	.opt-icon {
-		font-size: 14px;
-		line-height: 1;
-		flex-shrink: 0;
-	}
-
-	.opt-dot {
-		width: 7px;
-		height: 7px;
-		border-radius: 50%;
-		flex-shrink: 0;
-	}
-
-	.opt-badge {
-		font-size: 10.5px;
-		font-weight: 600;
-		padding: 1px 6px;
-		border-radius: 4px;
-		background: var(--bg-subtle);
-		color: var(--muted);
-	}
-
-	/* Dropdown listbox */
-	.select-dropdown {
-		position: absolute;
-		top: calc(100% + 4px);
-		left: 0;
-		z-index: 500;
-		min-width: 100%;
-		width: max-content;
-		max-width: 320px;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		background: var(--surface);
-		box-shadow: var(--shadow-xl);
-		overflow: hidden;
-		animation: dropdownFadeIn 120ms ease;
-	}
-
-	.select-dropdown.align-right {
-		left: auto;
-		right: 0;
-	}
-
-	@keyframes dropdownFadeIn {
-		from { opacity: 0; transform: translateY(-4px); }
-		to { opacity: 1; transform: translateY(0); }
-	}
-
-	.options-scroller {
-		max-height: 240px;
-		overflow-y: auto;
-		padding: 4px;
-	}
-
-	.option-item {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		width: 100%;
-		padding: 7px 10px;
-		border-radius: var(--radius-sm);
-		font-size: 12.5px;
-		color: var(--ink);
-		cursor: pointer;
-		text-align: left;
-		transition: background 100ms ease;
-	}
-
-	.option-item:hover {
-		background: var(--surface-hover);
-	}
-
-	.option-item.selected {
-		background: var(--bg-subtle);
-		font-weight: 600;
-	}
-
-	.opt-left {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		overflow: hidden;
-	}
-
-	.opt-texts {
-		display: flex;
-		flex-direction: column;
-	}
-
-	.opt-label {
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.opt-sub {
-		font-size: 10.5px;
-		color: var(--muted);
-	}
-
-	.opt-right {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		margin-left: 12px;
-	}
-
-	.check-icon {
-		color: var(--green-deep);
-		flex-shrink: 0;
-	}
-</style>

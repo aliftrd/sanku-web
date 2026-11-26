@@ -9,6 +9,7 @@
 		formatMoney,
 		todayISO
 	} from '#lib/finance.ts';
+	import { cn } from '#lib/utils.ts';
 
 	let {
 		transactions = [],
@@ -56,7 +57,7 @@
 
 	function barHeight(value: number): string {
 		if (value <= 0) return '0%';
-		return `${Math.max(3, (value / maxValue) * 100)}%`;
+		return `${Math.max(4, (value / maxValue) * 100)}%`;
 	}
 
 	let bestPeriod = $derived(
@@ -69,114 +70,145 @@
 	let totalPeriodIncome = $derived(items.reduce((sum, item) => sum + item.income, 0));
 	let totalPeriodExpense = $derived(items.reduce((sum, item) => sum + item.expense, 0));
 	let totalPeriodNet = $derived(totalPeriodIncome - totalPeriodExpense);
+
+	const RANGES: Array<{ value: CashflowRange; label: string }> = [
+		{ value: '7D', label: '7D' },
+		{ value: '1M', label: '1M' },
+		{ value: '6M', label: '6M' },
+		{ value: '1Y', label: '1Y' }
+	];
 </script>
 
-<div class="cashflow-chart">
-	<div class="chart-head">
-		<div class="chart-legend">
-			<span><i class="dot income"></i> Income</span>
-			<span><i class="dot expense"></i> Expenses</span>
+<div class="flex flex-col gap-3">
+	<div class="flex flex-wrap items-center justify-between gap-2">
+		<div class="text-muted-foreground flex items-center gap-3 text-xs font-medium">
+			<span class="inline-flex items-center gap-1.5">
+				<span class="size-2 rounded-full bg-emerald-500"></span>
+				Income
+			</span>
+			<span class="inline-flex items-center gap-1.5">
+				<span class="size-2 rounded-full bg-rose-500"></span>
+				Expenses
+			</span>
 		</div>
 
-		<div class="chart-range-picker" role="group" aria-label="Cashflow time range">
-			<button
-				type="button"
-				class="range-pill"
-				class:active={selectedRange === '7D'}
-				onclick={() => (selectedRange = '7D')}
-			>
-				7 Days
-			</button>
-			<button
-				type="button"
-				class="range-pill"
-				class:active={selectedRange === '1M'}
-				onclick={() => (selectedRange = '1M')}
-			>
-				1 Month
-			</button>
-			<button
-				type="button"
-				class="range-pill"
-				class:active={selectedRange === '6M'}
-				onclick={() => (selectedRange = '6M')}
-			>
-				6 Months
-			</button>
-			<button
-				type="button"
-				class="range-pill"
-				class:active={selectedRange === '1Y'}
-				onclick={() => (selectedRange = '1Y')}
-			>
-				1 Year
-			</button>
+		<div class="bg-muted inline-flex items-center gap-0.5 rounded-lg p-0.5" role="group" aria-label="Cashflow time range">
+			{#each RANGES as r (r.value)}
+				<button
+					type="button"
+					class={cn(
+						'cursor-pointer rounded-md px-2 py-0.5 text-[11px] font-semibold transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring/30',
+						selectedRange === r.value
+							? 'bg-card text-foreground shadow-2xs'
+							: 'text-muted-foreground hover:text-foreground'
+					)}
+					onclick={() => (selectedRange = r.value)}
+				>
+					{r.label}
+				</button>
+			{/each}
 		</div>
 
 		{#if bestPeriod && (bestPeriod.income > 0 || bestPeriod.expense > 0)}
-			<span class="chart-highlight">
-				Best: <strong>{bestPeriod.shortLabel || bestPeriod.label}</strong>
-				<em class:negative={bestPeriod.net < 0}>{formatMoney(bestPeriod.net, currency)}</em>
+			<span class="text-muted-foreground text-xs">
+				Best: <strong class="text-foreground">{bestPeriod.shortLabel || bestPeriod.label}</strong>
+				<span class={cn('font-semibold tabular-nums', bestPeriod.net < 0 ? 'text-rose-600' : 'text-emerald-700')}>
+					{formatMoney(bestPeriod.net, currency)}
+				</span>
 			</span>
 		{/if}
 	</div>
 
-	<div class="chart-plot" role="img" aria-label={`Income and expenses for ${selectedRange}`}>
-		{#each items as item (item.key)}
-			<div
-				class="chart-column"
-				class:dimmed={hovered !== null && hovered !== item.key}
-				onmouseenter={() => (hovered = item.key)}
-				onmouseleave={() => (hovered = null)}
-				role="presentation"
-			>
-				<div class="chart-tip" class:visible={hovered === item.key}>
-					<strong>{item.label}</strong>
-					<span><i class="dot income"></i>{formatMoney(item.income, currency)}</span>
-					<span><i class="dot expense"></i>{formatMoney(item.expense, currency)}</span>
-					<span class="tip-net" class:negative={item.net < 0}>
-						Net {formatMoney(item.net, currency)}
-					</span>
-				</div>
+	<div class="overflow-visible pt-2" role="img" aria-label={`Income and expenses for ${selectedRange}`}>
+		<div
+			class="grid items-end gap-1 sm:gap-1.5"
+			style={`grid-template-columns: repeat(${items.length}, minmax(0, 1fr));`}
+		>
+			{#each items as item, idx (item.key)}
+				<div
+					class={cn(
+						'group relative flex flex-col items-center gap-1.5 transition-opacity',
+						hovered !== null && hovered !== item.key && 'opacity-45'
+					)}
+					onmouseenter={() => (hovered = item.key)}
+					onmouseleave={() => (hovered = null)}
+					role="presentation"
+				>
+					<!-- Edge-aware Hover Tooltip -->
+					{#if hovered === item.key}
+						<div
+							class={cn(
+								'bg-popover text-popover-foreground border-border pointer-events-none absolute bottom-full z-40 mb-1.5 flex min-w-[140px] flex-col gap-0.5 rounded-lg border p-2 text-[11px] whitespace-nowrap shadow-md',
+								idx <= 1 ? 'left-0' : idx >= items.length - 2 ? 'right-0' : 'left-1/2 -translate-x-1/2'
+							)}
+						>
+							<strong class="text-foreground font-semibold">{item.label}</strong>
+							<span class="flex items-center justify-between gap-3 text-emerald-700 tabular-nums">
+								<span>In</span>
+								<span>{formatMoney(item.income, currency)}</span>
+							</span>
+							<span class="flex items-center justify-between gap-3 text-rose-600 tabular-nums">
+								<span>Out</span>
+								<span>{formatMoney(item.expense, currency)}</span>
+							</span>
+							<span
+								class={cn(
+									'border-border mt-0.5 flex items-center justify-between gap-3 border-t pt-0.5 font-semibold tabular-nums',
+									item.net < 0 ? 'text-rose-600' : 'text-foreground'
+								)}
+							>
+								<span>Net</span>
+								<span>{formatMoney(item.net, currency)}</span>
+							</span>
+						</div>
+					{/if}
 
-				<div class="chart-bars">
-					<span
-						class="chart-bar income"
-						style={`height:${barHeight(item.income)}`}
-						aria-label={`Income ${formatMoney(item.income, currency)}`}
-					></span>
-					<span
-						class="chart-bar expense"
-						style={`height:${barHeight(item.expense)}`}
-						aria-label={`Expenses ${formatMoney(item.expense, currency)}`}
-					></span>
-				</div>
+					<!-- Bar Pair -->
+					<div class="border-border/60 flex h-24 w-full items-end justify-center gap-0.5 border-b pb-0.5 sm:h-28 sm:gap-1">
+						<span
+							class="w-2 rounded-t-sm bg-emerald-500 transition-all duration-300 sm:w-3"
+							style={`height:${barHeight(item.income)}`}
+							aria-label={`Income ${formatMoney(item.income, currency)}`}
+						></span>
+						<span
+							class="w-2 rounded-t-sm bg-rose-500 transition-all duration-300 sm:w-3"
+							style={`height:${barHeight(item.expense)}`}
+							aria-label={`Expenses ${formatMoney(item.expense, currency)}`}
+						></span>
+					</div>
 
-				<div class="chart-axis">
-					<span>{item.shortLabel}</span>
-					<em class:negative={item.net < 0}>
-						{item.net === 0 ? '—' : formatCompactMoney(item.net, currency)}
-					</em>
+					<!-- Axis Label -->
+					<div class="flex flex-col items-center text-center leading-tight">
+						<span class="text-muted-foreground text-[10px] font-medium sm:text-[11px]">{item.shortLabel}</span>
+						<span class={cn('text-[9px] font-medium tabular-nums sm:text-[10px]', item.net < 0 ? 'text-rose-600' : 'text-muted-foreground')}>
+							{item.net === 0 ? '—' : formatCompactMoney(item.net, currency)}
+						</span>
+					</div>
 				</div>
-			</div>
-		{/each}
+			{/each}
+		</div>
 	</div>
 
-	<div class="chart-foot-totals">
-		<div class="period-stat">
-			<span class="p-label">Total in</span>
-			<span class="p-val pos">+{formatMoney(totalPeriodIncome, currency)}</span>
+	<div class="border-border grid grid-cols-3 gap-2 border-t pt-2.5">
+		<div class="space-y-0.5">
+			<span class="text-muted-foreground block text-[11px]">Total in</span>
+			<span class="block text-xs font-semibold text-emerald-700 tabular-nums sm:text-sm">
+				+{formatMoney(totalPeriodIncome, currency)}
+			</span>
 		</div>
-		<div class="period-stat">
-			<span class="p-label">Total out</span>
-			<span class="p-val neg">−{formatMoney(totalPeriodExpense, currency)}</span>
+		<div class="space-y-0.5">
+			<span class="text-muted-foreground block text-[11px]">Total out</span>
+			<span class="text-foreground block text-xs font-semibold tabular-nums sm:text-sm">
+				−{formatMoney(totalPeriodExpense, currency)}
+			</span>
 		</div>
-		<div class="period-stat">
-			<span class="p-label">Net surplus</span>
+		<div class="space-y-0.5">
+			<span class="text-muted-foreground block text-[11px]">Net surplus</span>
 			<span
-				class="p-val"
-				class:pos={totalPeriodNet >= 0}
-				class:neg={totalPeriodNet < 0}
+				class={cn(
+					'block text-xs font-semibold tabular-nums sm:text-sm',
+					totalPeriodNet >= 0 ? 'text-emerald-700' : 'text-rose-600'
+				)}
 			>
 				{totalPeriodNet >= 0 ? '+' : ''}{formatMoney(totalPeriodNet, currency)}
 			</span>
