@@ -33,14 +33,6 @@
 		onFilterAccount: (account: string) => void;
 	} = $props();
 
-	const SORT_COLUMNS: Array<{ key: SortColumn; label: string }> = [
-		{ key: 'date', label: 'Date' },
-		{ key: 'amount', label: 'Amount' },
-		{ key: 'description', label: 'Description' },
-		{ key: 'category', label: 'Category' },
-		{ key: 'account', label: 'Account' }
-	];
-
 	function sortIndicator(column: SortColumn) {
 		if (sortBy !== column) return '↕';
 		return sortOrder === 'asc' ? '↑' : '↓';
@@ -189,26 +181,6 @@
 {/snippet}
 
 <div class="border-border bg-card overflow-hidden rounded-xl border shadow-2xs">
-	<!-- Quick-sort bar for screens where Category / Account columns are collapsed inline -->
-	<div class="border-border bg-muted/30 flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2 text-xs xl:hidden">
-		<span class="text-muted-foreground font-medium">Sort by</span>
-		<div class="flex flex-wrap items-center gap-1">
-			{#each SORT_COLUMNS as col (col.key)}
-				<Button
-					variant={sortBy === col.key ? 'secondary' : 'ghost'}
-					size="sm"
-					class="h-6 px-2 text-xs font-medium"
-					onclick={() => onSort(col.key)}
-				>
-					{col.label}
-					{#if sortBy === col.key}
-						<span class="text-foreground/70">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-					{/if}
-				</Button>
-			{/each}
-		</div>
-	</div>
-
 	<Table.Root>
 		<Table.Header>
 			<Table.Row class="bg-muted/40 hover:bg-muted/40">

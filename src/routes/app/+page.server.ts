@@ -3,6 +3,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { getWorkspace } from '#lib/server/workspace.ts';
 import {
 	createTransaction,
+	createTransactionsBatch,
 	deleteCategory,
 	deleteTransaction,
 	deleteWallet,
@@ -520,6 +521,77 @@ export const actions: Actions = {
 		} catch (cause) {
 			console.error('Could not delete wallet:', cause);
 			return fail(502, { error: friendlyGoogleError(cause), action: 'deleteWallet', id });
+		}
+	},
+
+	importTransactions: async ({ request, locals, cookies }) => {
+		const { accessToken, spreadsheetId } = await getWorkspace(locals, cookies);
+		const data = await request.formData();
+		const rawJson = String(data.get('transactionsJson') ?? '').trim();
+		const defaultAccount = String(data.get('defaultAccount') ?? '').trim().slice(0, MAX_ACCOUNT_LENGTH);
+
+		if (!rawJson) {
+			return fail(400, { error: 'No transactions selected to import.', action: 'importTransactions' });
+		}
+
+		let parsedItems: unknown;
+		try {
+			parsedItems = JSON.parse(rawJson);
+		} catch {
+			return fail(400, { error: 'Invalid import payload.', action: 'importTransactions' });
+		}
+
+		if (!Array.isArray(parsedItems) || parsedItems.length === 0) {
+			return fail(400, { error: 'Select at least one transaction to import.', action: 'importTransactions' });
+		}
+
+		if (parsedItems.length > 500) {
+			return fail(400, {
+				error: 'You can import up to 500 transactions at a time.',
+				action: 'importTransactions'
+			});
+		}
+
+		const validInputs: TransactionInput[] = [];
+		for (const item of parsedItems) {
+			if (!item || typeof item !== 'object') continue;
+			const row = item as Record<string, unknown>;
+			const date = String(row.date ?? '').trim();
+			const type = String(row.type ?? 'expense').trim() as TransactionInput['type'];
+			const categoryId = String(row.categoryId ?? '').trim();
+			const description = String(row.description ?? '').trim().slice(0, MAX_DESCRIPTION_LENGTH);
+			const amount = Number(row.amount);
+			const account = String(row.account ?? defaultAccount).trim().slice(0, MAX_ACCOUNT_LENGTH);
+			const notes = String(row.notes ?? '').trim().slice(0, MAX_NOTES_LENGTH);
+
+			if (!isValidDateString(date)) continue;
+			if (type !== 'income' && type !== 'expense' && type !== 'transfer') continue;
+			if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) continue;
+
+			validInputs.push({
+				date,
+				type,
+				categoryId: type === 'transfer' ? '' : categoryId,
+				description: description || 'Imported transaction',
+				amount,
+				account,
+				notes
+			});
+		}
+
+		if (validInputs.length === 0) {
+			return fail(400, {
+				error: 'No valid transaction rows were found to import.',
+				action: 'importTransactions'
+			});
+		}
+
+		try {
+			const created = await createTransactionsBatch(accessToken, spreadsheetId, validInputs);
+			return { success: true, action: 'importTransactions', importedCount: created.length };
+		} catch (cause) {
+			console.error('Could not import transactions:', cause);
+			return fail(502, { error: friendlyGoogleError(cause), action: 'importTransactions' });
 		}
 	}
 };

@@ -98,7 +98,7 @@
 		aria-modal="true"
 		aria-labelledby="wallet-modal-title"
 	>
-		<header class="border-border flex items-start justify-between border-b px-6 py-4">
+		<header class="border-border flex shrink-0 items-start justify-between border-b px-5 py-4 sm:px-6">
 			<div class="space-y-1">
 				<p class="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
 					{wallet ? 'Edit Account' : 'New Account / Wallet'}
@@ -115,7 +115,7 @@
 		<form
 			method="POST"
 			action="?/saveWallet"
-			class="flex flex-col gap-5 overflow-y-auto p-6"
+			class="flex min-h-0 flex-1 flex-col overflow-hidden"
 			use:enhance={() => {
 				saving = true;
 				error = null;
@@ -135,104 +135,106 @@
 				};
 			}}
 		>
-			{#if wallet}
-				<input type="hidden" name="id" value={wallet.id} />
-			{/if}
+			<div class="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-5 sm:p-6">
+				{#if wallet}
+					<input type="hidden" name="id" value={wallet.id} />
+				{/if}
 
-			<div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-				{#each WALLET_KINDS as item (item.kind)}
-					<button
-						type="button"
-						class={cn(
-							'border-border bg-card hover:bg-accent flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border px-2 py-3 text-center transition-all',
-							kind === item.kind && 'border-primary bg-primary/5 ring-primary/20 ring-2'
-						)}
-						onclick={() => selectKind(item.kind, item.icon)}
-					>
-						<span class="text-xl">{item.icon}</span>
-						<span class="text-xs font-semibold">{item.label}</span>
-					</button>
-				{/each}
-			</div>
-			<input type="hidden" name="kind" value={kind} />
-
-			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-				<div class="space-y-1.5 sm:col-span-2">
-					<Label for="wallet-name">Account Name</Label>
-					<Input
-						id="wallet-name"
-						name="name"
-						bind:value={name}
-						maxlength={50}
-						placeholder="e.g. BCA Checking, Main Cash, Revolut..."
-						required
-					/>
+				<div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+					{#each WALLET_KINDS as item (item.kind)}
+						<button
+							type="button"
+							class={cn(
+								'border-border bg-card hover:bg-accent flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border px-2 py-3 text-center transition-all',
+								kind === item.kind && 'border-primary bg-primary/5 ring-primary/20 ring-2'
+							)}
+							onclick={() => selectKind(item.kind, item.icon)}
+						>
+							<span class="text-xl">{item.icon}</span>
+							<span class="text-xs font-semibold">{item.label}</span>
+						</button>
+					{/each}
 				</div>
+				<input type="hidden" name="kind" value={kind} />
 
-				<div class="space-y-1.5">
-					<Label for="wallet-balance">Initial / Starting Balance</Label>
-					<div class="border-input bg-card focus-within:ring-ring/25 flex h-9 items-center gap-2 rounded-md border px-3 shadow-2xs focus-within:ring-2">
-						<span class="text-muted-foreground text-xs font-bold">{currency}</span>
-						<input type="hidden" name="initialBalance" value={rawInitialBalance} />
-						<input
-							id="wallet-balance"
-							type="text"
-							inputmode="numeric"
-							placeholder="0"
-							value={displayInitialBalance}
-							oninput={handleBalanceInput}
-							class="w-full bg-transparent text-sm font-semibold tabular-nums outline-none"
+				<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+					<div class="space-y-1.5 sm:col-span-2">
+						<Label for="wallet-name">Account Name</Label>
+						<Input
+							id="wallet-name"
+							name="name"
+							bind:value={name}
+							maxlength={50}
+							placeholder="e.g. BCA Checking, Main Cash, Revolut..."
+							required
 						/>
 					</div>
+
+					<div class="space-y-1.5">
+						<Label for="wallet-balance">Initial / Starting Balance</Label>
+						<div class="border-input bg-card focus-within:ring-ring/25 flex h-9 items-center gap-2 rounded-md border px-3 shadow-2xs focus-within:ring-2">
+							<span class="text-muted-foreground text-xs font-bold">{currency}</span>
+							<input type="hidden" name="initialBalance" value={rawInitialBalance} />
+							<input
+								id="wallet-balance"
+								type="text"
+								inputmode="numeric"
+								placeholder="0"
+								value={displayInitialBalance}
+								oninput={handleBalanceInput}
+								class="w-full bg-transparent text-sm font-semibold tabular-nums outline-none"
+							/>
+						</div>
+					</div>
+
+					<div class="space-y-1.5">
+						<Label>Account Icon</Label>
+						<div class="flex flex-wrap gap-1.5">
+							{#each ICONS as ic (ic)}
+								<button
+									type="button"
+									class={cn(
+										'border-border bg-card hover:bg-accent flex size-8 cursor-pointer items-center justify-center rounded-md border text-base transition-transform',
+										icon === ic && 'border-primary bg-primary/5 scale-105 ring-2 ring-primary/20'
+									)}
+									onclick={() => (icon = ic)}
+								>
+									{ic}
+								</button>
+							{/each}
+						</div>
+						<input type="hidden" name="icon" value={icon} />
+					</div>
+
+					<div class="space-y-1.5 sm:col-span-2">
+						<Label>Theme Color</Label>
+						<div class="flex flex-wrap items-center gap-2.5">
+							{#each COLOR_PALETTE as c (c)}
+								<button
+									type="button"
+									class={cn(
+										'size-7 cursor-pointer rounded-full border-2 border-transparent transition-transform hover:scale-110',
+										color === c && 'border-foreground scale-115 ring-2 ring-offset-2 ring-foreground/20'
+									)}
+									style={`background: ${c}`}
+									aria-label={`Color ${c}`}
+									onclick={() => (color = c)}
+								></button>
+							{/each}
+						</div>
+						<input type="hidden" name="color" value={color} />
+					</div>
 				</div>
 
-				<div class="space-y-1.5">
-					<Label>Account Icon</Label>
-					<div class="flex flex-wrap gap-1.5">
-						{#each ICONS as ic (ic)}
-							<button
-								type="button"
-								class={cn(
-									'border-border bg-card hover:bg-accent flex size-8 cursor-pointer items-center justify-center rounded-md border text-base transition-transform',
-									icon === ic && 'border-primary bg-primary/5 scale-105 ring-2 ring-primary/20'
-								)}
-								onclick={() => (icon = ic)}
-							>
-								{ic}
-							</button>
-						{/each}
+				{#if error}
+					<div class="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700" role="alert">
+						<span class="flex size-4 shrink-0 items-center justify-center rounded-full bg-rose-600 text-[10px] font-bold text-white">!</span>
+						<p>{error}</p>
 					</div>
-					<input type="hidden" name="icon" value={icon} />
-				</div>
-
-				<div class="space-y-1.5 sm:col-span-2">
-					<Label>Theme Color</Label>
-					<div class="flex flex-wrap items-center gap-2.5">
-						{#each COLOR_PALETTE as c (c)}
-							<button
-								type="button"
-								class={cn(
-									'size-7 cursor-pointer rounded-full border-2 border-transparent transition-transform hover:scale-110',
-									color === c && 'border-foreground scale-115 ring-2 ring-offset-2 ring-foreground/20'
-								)}
-								style={`background: ${c}`}
-								aria-label={`Color ${c}`}
-								onclick={() => (color = c)}
-							></button>
-						{/each}
-					</div>
-					<input type="hidden" name="color" value={color} />
-				</div>
+				{/if}
 			</div>
 
-			{#if error}
-				<div class="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700" role="alert">
-					<span class="flex size-4 shrink-0 items-center justify-center rounded-full bg-rose-600 text-[10px] font-bold text-white">!</span>
-					<p>{error}</p>
-				</div>
-			{/if}
-
-			<footer class="border-border flex flex-col-reverse gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+			<footer class="border-border bg-card flex shrink-0 flex-col-reverse gap-3 border-t px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
 				<div>
 					{#if wallet}
 						<Button

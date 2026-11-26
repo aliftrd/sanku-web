@@ -24,6 +24,8 @@
 	import CategoryDonut from '#lib/components/CategoryDonut.svelte';
 	import BudgetPanel from '#lib/components/BudgetPanel.svelte';
 	import TransactionsTable from '#lib/components/TransactionsTable.svelte';
+	import StatementImportModal from '#lib/components/StatementImportModal.svelte';
+	import AccountsListModal from '#lib/components/AccountsListModal.svelte';
 
 	let { data, form }: PageProps = $props();
 
@@ -61,7 +63,9 @@
 		});
 	});
 
-	type FormState = { error?: string; action?: string; id?: string | null; success?: boolean };
+	let previewWallets = $derived(walletBreakdown.slice(0, 3));
+
+	type FormState = { error?: string; action?: string; id?: string | null; success?: boolean; importedCount?: number };
 	let message = $derived(form as FormState | null);
 
 	let showTransactionModal = $state(false);
@@ -69,6 +73,9 @@
 	let showCategories = $state(false);
 	let showWalletModal = $state(false);
 	let editingWallet = $state<Wallet | null>(null);
+	let showAccountsList = $state(false);
+	let showStatementImport = $state(false);
+	let importNotice = $state<string | null>(null);
 	let showSettings = $state(false);
 
 	let showUserMenu = $state(false);
@@ -115,6 +122,8 @@
 			!showTransactionModal &&
 			!showCategories &&
 			!showWalletModal &&
+			!showAccountsList &&
+			!showStatementImport &&
 			!showSettings &&
 			!showLogoutConfirm &&
 			!deletingTransaction
@@ -416,7 +425,7 @@
 					<Button
 						variant="ghost"
 						size="sm"
-						onclick={() => document.querySelector('#accounts-section')?.scrollIntoView({ behavior: 'smooth' })}
+						onclick={() => (showAccountsList = true)}
 					>
 						Accounts
 					</Button>
@@ -530,6 +539,9 @@
 				</p>
 			</div>
 			<div class="flex flex-wrap items-center gap-2">
+				<Button variant="outline" size="sm" onclick={() => (showStatementImport = true)}>
+					Import e-Statement
+				</Button>
 				<Button variant="outline" size="sm" onclick={() => (showCategories = true)}>
 					Manage Budgets
 				</Button>
@@ -640,6 +652,9 @@
 						<Card.Title class="text-base">Accounts & Wallets</Card.Title>
 					</div>
 					<div class="flex flex-wrap items-center gap-2">
+						<Button variant="outline" size="sm" onclick={() => (showAccountsList = true)}>
+							View All ({walletBreakdown.length})
+						</Button>
 						<Button variant="outline" size="sm" onclick={() => openCreate('transfer')}>
 							⇄ Transfer Funds
 						</Button>
@@ -670,11 +685,22 @@
 									data.currency
 								)}
 							</div>
-							<div class="mt-0.5 text-[11px] opacity-75">Calculated across all accounts</div>
+							<div class="mt-0.5 flex items-center justify-between gap-2 text-[11px] opacity-80">
+								<span>Across all accounts</span>
+								{#if walletBreakdown.length > 3}
+									<button
+										type="button"
+										class="cursor-pointer underline underline-offset-2 hover:opacity-100"
+										onclick={() => (showAccountsList = true)}
+									>
+										+{walletBreakdown.length - 3} more
+									</button>
+								{/if}
+							</div>
 						</div>
 
-						<!-- Individual Accounts -->
-						{#each walletBreakdown as wallet (wallet.id)}
+						<!-- Top 3 Accounts on Dashboard -->
+						{#each previewWallets as wallet (wallet.id)}
 							<div
 								class="border-border bg-card hover:bg-accent/40 flex flex-col justify-between rounded-xl border border-l-4 p-3 transition-colors"
 								style={`border-left-color: ${wallet.color || 'var(--border)'}`}
@@ -857,6 +883,14 @@
 						</div>
 
 						<div class="flex flex-wrap items-center gap-2">
+							<Button
+								variant="outline"
+								size="sm"
+								onclick={() => (showStatementImport = true)}
+								title="Import transactions from PDF or CSV e-Statement"
+							>
+								Import e-Statement
+							</Button>
 							<Button
 								variant="outline"
 								size="sm"
@@ -1155,6 +1189,67 @@
 		currency={data.currency}
 		onclose={() => (showWalletModal = false)}
 	/>
+{/if}
+
+<!-- All Accounts List Modal -->
+{#if showAccountsList}
+	<AccountsListModal
+		wallets={walletBreakdown}
+		currency={data.currency}
+		onclose={() => (showAccountsList = false)}
+		onadd={() => {
+			showAccountsList = false;
+			editingWallet = null;
+			showWalletModal = true;
+		}}
+		onedit={(wallet) => {
+			showAccountsList = false;
+			editingWallet = wallet;
+			showWalletModal = true;
+		}}
+		onfilter={(accountName) => {
+			showAccountsList = false;
+			filterCategory = 'all';
+			search = accountName;
+			page = 1;
+			document.querySelector('#transactions-section')?.scrollIntoView({ behavior: 'smooth' });
+		}}
+	/>
+{/if}
+
+<!-- e-Statement Import Modal -->
+{#if showStatementImport}
+	<StatementImportModal
+		categories={data.categories}
+		wallets={data.wallets}
+		currency={data.currency}
+		onclose={() => (showStatementImport = false)}
+		onimported={(count) => {
+			importNotice = `Imported ${count} ${count === 1 ? 'transaction' : 'transactions'} directly to your Google Sheet.`;
+			setTimeout(() => {
+				importNotice = null;
+			}, 5000);
+		}}
+	/>
+{/if}
+
+{#if importNotice}
+	<div
+		class="fixed bottom-20 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-lg sm:bottom-6"
+		role="status"
+	>
+		<span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">✓</span>
+		<p class="flex-1 font-medium">{importNotice}</p>
+		<Button
+			variant="ghost"
+			size="icon-sm"
+			class="size-7 text-emerald-700 hover:bg-emerald-100"
+			aria-label="Dismiss notice"
+			onclick={() => (importNotice = null)}
+		>
+			×
+		</Button>
+	</div>
 {/if}
 
 <!-- Settings Right Sheet -->

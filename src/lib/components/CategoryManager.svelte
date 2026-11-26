@@ -71,6 +71,7 @@
 	let deletingCategory = $state<Category | null>(null);
 	let isDeleting = $state(false);
 	let deleteForm: HTMLFormElement | null = $state(null);
+	let formEl: HTMLFormElement | null = $state(null);
 
 	function executeDeleteCategory() {
 		if (!deletingCategory || !deleteForm) return;
@@ -101,6 +102,9 @@
 		emoji = category.emoji;
 		displayBudget = category.budget > 0 ? formatNumberWithDots(category.budget) : '';
 		error = null;
+		requestAnimationFrame(() => {
+			formEl?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+		});
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
@@ -113,7 +117,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-	class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-xs"
+	class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3 backdrop-blur-xs sm:p-4"
 	role="presentation"
 	onclick={(event) => {
 		if (event.target === event.currentTarget && !saving) onclose();
@@ -125,12 +129,12 @@
 		aria-modal="true"
 		aria-labelledby="category-modal-title"
 	>
-		<header class="border-border flex items-start justify-between border-b px-5 py-4 sm:px-7 sm:py-5">
-			<div class="space-y-1">
+		<header class="border-border flex shrink-0 items-start justify-between border-b px-4 py-3.5 sm:px-6 sm:py-4">
+			<div class="space-y-0.5">
 				<span class="text-muted-foreground text-[11px] font-bold tracking-wider uppercase">
 					Categories & Budgets
 				</span>
-				<h2 id="category-modal-title" class="text-lg font-bold tracking-tight sm:text-xl">
+				<h2 id="category-modal-title" class="text-base font-bold tracking-tight sm:text-xl">
 					Shape how your money is organised
 				</h2>
 			</div>
@@ -139,9 +143,9 @@
 			</Button>
 		</header>
 
-		<div class="grid grid-cols-1 gap-6 overflow-y-auto p-5 sm:p-7 md:grid-cols-[1.15fr_0.85fr]">
+		<div class="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 sm:gap-6 sm:p-6 md:grid-cols-[1.15fr_0.85fr]">
 			<!-- Left Column: Category List -->
-			<div class="flex flex-col gap-4">
+			<div class="flex flex-col gap-3">
 				<div class="bg-muted grid grid-cols-2 gap-1 rounded-lg p-1" role="tablist" aria-label="Category type filter">
 					<button
 						type="button"
@@ -179,33 +183,33 @@
 					</button>
 				</div>
 
-				<div class="max-h-[280px] space-y-2 overflow-y-auto pr-1 md:max-h-[420px]">
+				<div class="border-border bg-muted/20 max-h-[230px] space-y-1.5 overflow-y-auto rounded-xl border p-2 md:max-h-[380px]">
 					{#each activeList as category (category.id)}
 						<div
 							class={cn(
-								'border-border bg-card hover:bg-accent/40 flex items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 transition-colors',
+								'border-border bg-card hover:bg-accent/40 flex items-center justify-between gap-2.5 rounded-lg border px-3 py-2 transition-colors',
 								editingId === category.id && 'border-primary bg-primary/5 ring-1 ring-primary/20'
 							)}
 						>
-							<div class="flex min-w-0 items-center gap-3">
+							<div class="flex min-w-0 items-center gap-2.5">
 								<span
-									class="flex size-9 shrink-0 items-center justify-center rounded-md text-lg"
+									class="flex size-8 shrink-0 items-center justify-center rounded-md text-base"
 									style={`background: ${category.color}20`}
 								>
 									{category.emoji}
 								</span>
 								<div class="flex min-w-0 flex-col">
-									<strong class="truncate text-sm font-semibold">{category.name}</strong>
+									<strong class="truncate text-xs font-semibold sm:text-sm">{category.name}</strong>
 									{#if category.type === 'expense'}
 										{#if category.budget > 0}
-											<span class="text-xs font-medium text-emerald-700">
+											<span class="text-[11px] font-medium text-emerald-700">
 												Limit: {formatMoney(category.budget, currency)}/mo
 											</span>
 										{:else}
-											<span class="text-muted-foreground text-xs">No budget limit</span>
+											<span class="text-muted-foreground text-[11px]">No budget limit</span>
 										{/if}
 									{:else}
-										<span class="text-muted-foreground text-xs">Income Category</span>
+										<span class="text-muted-foreground text-[11px]">Income Category</span>
 									{/if}
 								</div>
 							</div>
@@ -214,23 +218,24 @@
 								<Button
 									variant="outline"
 									size="icon-sm"
+									class="size-7"
 									title="Edit category"
 									aria-label={`Edit ${category.name}`}
 									onclick={() => startEdit(category)}
 								>
-									<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+									<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 										<path d="M11.5 2.5a1.77 1.77 0 0 1 2.5 2.5L5 14H2v-3l9.5-8.5z" />
 									</svg>
 								</Button>
 								<Button
 									variant="outline"
 									size="icon-sm"
-									class="text-destructive hover:bg-rose-50 hover:text-rose-700"
+									class="text-destructive size-7 hover:bg-rose-50 hover:text-rose-700"
 									title="Delete category"
 									aria-label={`Delete ${category.name}`}
 									onclick={() => (deletingCategory = category)}
 								>
-									<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+									<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 										<path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M13 4.5v9a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3 13.5v-9" />
 										<path d="M6.5 7.5v4M9.5 7.5v4" />
 									</svg>
@@ -240,13 +245,13 @@
 					{/each}
 
 					{#if activeList.length === 0}
-						<div class="border-border text-muted-foreground rounded-lg border border-dashed py-10 text-center text-xs">
+						<div class="text-muted-foreground py-8 text-center text-xs">
 							{activeTab === 'expense' ? 'No expense categories yet' : 'No income sources yet'}
 						</div>
 					{/if}
 				</div>
 
-				<p class="text-muted-foreground text-xs leading-relaxed">
+				<p class="text-muted-foreground text-[11px] leading-relaxed">
 					Deleting a category does not delete past transactions — they simply display as uncategorized.
 				</p>
 			</div>
@@ -254,9 +259,11 @@
 			<!-- Right Column: Add / Edit Form -->
 			<div>
 				<form
+					id="category-manager-form"
+					bind:this={formEl}
 					method="POST"
 					action="?/saveCategory"
-					class="border-border bg-muted/40 flex flex-col gap-4 rounded-xl border p-5"
+					class="border-border bg-muted/40 flex flex-col gap-3 rounded-xl border p-4"
 					use:enhance={() => {
 						saving = true;
 						error = null;
@@ -325,8 +332,8 @@
 					</div>
 					<input type="hidden" name="type" value={type} />
 
-					<div class="flex flex-col gap-3.5">
-						<div class="grid grid-cols-[64px_1fr] gap-2.5">
+					<div class="flex flex-col gap-3">
+						<div class="grid grid-cols-[60px_1fr] gap-2.5">
 							<div class="space-y-1.5">
 								<Label for="cat-emoji">Emoji</Label>
 								<Input
@@ -401,20 +408,37 @@
 							<p>{error}</p>
 						</div>
 					{/if}
-
-					<div class="space-y-2 pt-1">
-						<Button type="submit" class="w-full" disabled={saving}>
-							{saving ? 'Saving…' : editingCategory ? 'Save changes' : 'Add category'}
-						</Button>
-						{#if savedFlash}
-							<p class="text-center text-xs font-semibold text-emerald-700" role="status">
-								✓ Saved to Google Sheet
-							</p>
-						{/if}
-					</div>
 				</form>
 			</div>
 		</div>
+
+		<footer class="border-border bg-card flex shrink-0 flex-wrap items-center justify-between gap-3 border-t px-4 py-3.5 sm:px-6">
+			<div class="text-xs">
+				{#if savedFlash}
+					<span class="font-semibold text-emerald-700" role="status">
+						✓ Saved to Google Sheet
+					</span>
+				{:else}
+					<span class="text-muted-foreground">
+						{editingCategory ? `Editing "${editingCategory.name}"` : 'Saved to your Google Sheet Categories tab'}
+					</span>
+				{/if}
+			</div>
+
+			<div class="flex flex-wrap items-center justify-end gap-2">
+				{#if editingCategory}
+					<Button variant="ghost" size="sm" onclick={resetForm} disabled={saving}>
+						Cancel edit
+					</Button>
+				{/if}
+				<Button variant="outline" onclick={onclose} disabled={saving}>
+					Close
+				</Button>
+				<Button type="submit" form="category-manager-form" disabled={saving}>
+					{saving ? 'Saving…' : editingCategory ? 'Save changes' : 'Add category'}
+				</Button>
+			</div>
+		</footer>
 	</div>
 </div>
 

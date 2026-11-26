@@ -675,6 +675,46 @@ export async function createTransaction(
 	return transaction;
 }
 
+export async function createTransactionsBatch(
+	accessToken: string,
+	spreadsheetId: string,
+	inputs: TransactionInput[]
+): Promise<Transaction[]> {
+	if (inputs.length === 0) return [];
+
+	const now = new Date().toISOString();
+	const transactions: Transaction[] = inputs.map((input) => {
+		const normalized = normalizeTransaction(input);
+		return {
+			id: crypto.randomUUID(),
+			...normalized,
+			description: normalized.description || 'Untitled',
+			createdAt: now,
+			updatedAt: now
+		};
+	});
+
+	await appendRows(
+		accessToken,
+		spreadsheetId,
+		`${TX_SHEET}!A:J`,
+		transactions.map((transaction) => [
+			transaction.id,
+			transaction.date,
+			transaction.type,
+			transaction.categoryId,
+			transaction.description,
+			String(transaction.amount),
+			transaction.account,
+			transaction.notes,
+			transaction.createdAt,
+			transaction.updatedAt
+		])
+	);
+
+	return transactions;
+}
+
 export async function updateTransaction(
 	accessToken: string,
 	spreadsheetId: string,

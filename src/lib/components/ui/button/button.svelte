@@ -5,7 +5,7 @@
 	export const buttonVariants = tv({
 		base: cn(
 			'inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all',
-			'outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+			'outline-none focus-visible:ring-2 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:opacity-50',
 			'[&_svg]:pointer-events-none [&_svg]:shrink-0'
 		),
 		variants: {

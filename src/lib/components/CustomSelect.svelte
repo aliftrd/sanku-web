@@ -32,12 +32,44 @@
 
 	let open = $state(false);
 	let rootEl: HTMLDivElement | null = $state(null);
+	let triggerEl: HTMLButtonElement | null = $state(null);
+	let dropdownEl: HTMLDivElement | null = $state(null);
 	let hiddenInput: HTMLInputElement | null = $state(null);
+	let dropdownStyle = $state('');
 
 	let selectedOption = $derived(options.find((opt) => opt.value === value) ?? null);
 
+	function updatePosition() {
+		if (!triggerEl) return;
+		const rect = triggerEl.getBoundingClientRect();
+		const spaceBelow = window.innerHeight - rect.bottom;
+		const openUpward = spaceBelow < 220 && rect.top > 220;
+		const maxW = Math.min(320, window.innerWidth - 16);
+		const minW = Math.min(rect.width, maxW);
+
+		let horizontal = '';
+		if (align === 'right') {
+			const rightOffset = Math.max(8, window.innerWidth - rect.right);
+			horizontal = `right: ${rightOffset}px;`;
+		} else {
+			const leftOffset = Math.max(8, Math.min(rect.left, window.innerWidth - minW - 8));
+			horizontal = `left: ${leftOffset}px;`;
+		}
+
+		const vertical = openUpward
+			? `bottom: ${window.innerHeight - rect.top + 4}px;`
+			: `top: ${rect.bottom + 4}px;`;
+
+		dropdownStyle = `position: fixed; ${horizontal} ${vertical} min-width: ${minW}px; max-width: ${maxW}px;`;
+	}
+
 	function toggle() {
-		open = !open;
+		if (!open) {
+			updatePosition();
+			open = true;
+		} else {
+			open = false;
+		}
 	}
 
 	function select(optValue: string) {
@@ -52,7 +84,8 @@
 	}
 
 	function handleWindowClick(event: MouseEvent) {
-		if (open && rootEl && !rootEl.contains(event.target as Node)) {
+		const target = event.target as Node;
+		if (open && rootEl && !rootEl.contains(target) && (!dropdownEl || !dropdownEl.contains(target))) {
 			open = false;
 		}
 	}
@@ -62,6 +95,18 @@
 			open = false;
 		}
 	}
+
+	$effect(() => {
+		if (!open) return;
+		updatePosition();
+		const onScrollOrResize = () => updatePosition();
+		window.addEventListener('scroll', onScrollOrResize, true);
+		window.addEventListener('resize', onScrollOrResize);
+		return () => {
+			window.removeEventListener('scroll', onScrollOrResize, true);
+			window.removeEventListener('resize', onScrollOrResize);
+		};
+	});
 </script>
 
 <svelte:window onclick={handleWindowClick} onkeydown={handleKeyDown} />
@@ -75,6 +120,7 @@
 	{/if}
 
 	<button
+		bind:this={triggerEl}
 		type="button"
 		onclick={toggle}
 		aria-haspopup="listbox"
@@ -120,10 +166,9 @@
 
 	{#if open}
 		<div
-			class={cn(
-				'bg-popover text-popover-foreground border-border absolute top-[calc(100%+4px)] z-50 w-max min-w-full max-w-[320px] overflow-hidden rounded-lg border shadow-lg',
-				align === 'right' ? 'right-0 left-auto' : 'left-0'
-			)}
+			bind:this={dropdownEl}
+			style={dropdownStyle}
+			class="bg-popover text-popover-foreground border-border z-[120] overflow-hidden rounded-lg border shadow-xl"
 			role="listbox"
 		>
 			<div class="max-h-60 overflow-y-auto p-1">
@@ -132,7 +177,7 @@
 					<button
 						type="button"
 						class={cn(
-							'hover:bg-accent hover:text-accent-foreground flex w-full cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 py-1.5 text-left text-xs sm:text-sm transition-colors',
+							'hover:bg-accent hover:text-accent-foreground flex w-full cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 py-1.5 text-left text-xs transition-colors sm:text-sm',
 							isSelected && 'bg-accent/80 font-semibold'
 						)}
 						role="option"
@@ -161,7 +206,7 @@
 								</span>
 							{/if}
 							{#if isSelected}
-								<svg class="text-emerald-600 size-3.5 shrink-0" viewBox="0 0 16 16" aria-hidden="true">
+								<svg class="size-3.5 shrink-0 text-emerald-600" viewBox="0 0 16 16" aria-hidden="true">
 									<path d="M13.5 4.5 6 12 2.5 8.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
 								</svg>
 							{/if}
