@@ -2,9 +2,17 @@
 	import type { CategorySpend } from '#lib/types.ts';
 	import { formatMoney, groupCategorySpending } from '#lib/finance.ts';
 
-	let { items, currency }: { items: CategorySpend[]; currency: string } = $props();
+	let {
+		items,
+		currency,
+		monthLabel = ''
+	}: {
+		items: CategorySpend[];
+		currency: string;
+		monthLabel?: string;
+	} = $props();
 
-	const RADIUS = 54;
+	const RADIUS = 60;
 	const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 	let slices = $derived(groupCategorySpending(items));
@@ -17,7 +25,7 @@
 			const length = total > 0 ? (item.amount / total) * CIRCUMFERENCE : 0;
 			const segment = {
 				...item,
-				dash: `${length} ${CIRCUMFERENCE - length}`,
+				dash: `${length} ${Math.max(0, CIRCUMFERENCE - length)}`,
 				offset: -offset
 			};
 			offset += length;
@@ -26,56 +34,71 @@
 	});
 </script>
 
-{#if items.length === 0}
-	<div class="border-border flex flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed px-4 py-6 text-center">
-		<div class="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-full text-base">
-			◎
+<article class="bg-surface-card border-outline flex h-full flex-col justify-between gap-gutter-md rounded-md border p-gutter-md">
+	<header class="flex items-center justify-between gap-2">
+		<div>
+			<h2 class="font-title text-title-lg text-on-surface">Expense Distribution</h2>
+			<p class="font-body text-body-sm text-on-surface-variant">Share by category</p>
 		</div>
-		<p class="text-xs font-semibold sm:text-sm">No expenses in this month yet.</p>
-		<span class="text-muted-foreground max-w-xs text-xs">
-			Add an expense to see where your money goes.
-		</span>
-	</div>
-{:else}
-	<div class="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-5">
-		<div class="relative size-28 shrink-0 sm:size-32">
-			<svg viewBox="0 0 140 140" class="size-full" role="img" aria-label="Expenses by category">
-				<circle cx="70" cy="70" r={RADIUS} fill="none" stroke="#f1f5f9" stroke-width="16" />
-				{#each segments as segment (segment.category.id)}
-					<circle
-						cx="70"
-						cy="70"
-						r={RADIUS}
-						fill="none"
-						stroke={segment.category.color}
-						stroke-width="18"
-						stroke-dasharray={segment.dash}
-						stroke-dashoffset={segment.offset}
-						transform="rotate(-90 70 70)"
-					/>
-				{/each}
-			</svg>
-			<div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-				<span class="text-muted-foreground text-[10px] font-medium">Spent</span>
-				<strong class="text-xs font-bold tabular-nums sm:text-sm">{formatMoney(total, currency)}</strong>
-			</div>
-		</div>
+		{#if monthLabel}
+			<span class="font-label text-label-sm text-on-surface-variant">{monthLabel}</span>
+		{/if}
+	</header>
 
-		<ul class="w-full min-w-0 flex-1 space-y-1.5">
-			{#each segments as segment (segment.category.id)}
-				<li class="bg-muted/30 flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-xs">
-					<div class="flex min-w-0 items-center gap-2">
-						<span class="size-2 shrink-0 rounded-full" style={`background:${segment.category.color}`}></span>
-						<span class="truncate font-medium">
-							{segment.category.emoji} {segment.category.name}
+	{#if items.length === 0}
+		<div class="border-outline bg-surface-container-high flex flex-1 flex-col items-center justify-center gap-1.5 rounded border border-dashed px-4 py-8 text-center">
+			<span class="material-symbols-outlined text-on-surface-variant text-[24px]" aria-hidden="true">
+				donut_large
+			</span>
+			<p class="font-title text-title-md text-on-surface">No expenses yet</p>
+			<span class="font-body text-body-sm text-on-surface-variant max-w-xs">
+				Add an expense entry to visualize your category breakdown.
+			</span>
+		</div>
+	{:else}
+		<div class="flex flex-row items-center justify-between gap-4 py-1 sm:flex-col sm:justify-center sm:py-2">
+			<div class="relative flex size-28 shrink-0 items-center justify-center sm:size-44">
+				<svg viewBox="0 0 160 160" class="size-full -rotate-90" role="img" aria-label="Expenses by category">
+					<circle cx="80" cy="80" r={RADIUS} fill="none" stroke="#F1F5F9" stroke-width="18" />
+					{#each segments as segment (segment.category.id)}
+						<circle
+							cx="80"
+							cy="80"
+							r={RADIUS}
+							fill="none"
+							stroke={segment.category.color}
+							stroke-width="18"
+							stroke-dasharray={segment.dash}
+							stroke-dashoffset={segment.offset}
+							stroke-linecap={segments.length === 1 ? 'round' : 'butt'}
+						/>
+					{/each}
+				</svg>
+				<div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-3 text-center">
+					<span class="font-body text-body-sm text-on-surface-variant">Spent</span>
+					<span class="font-headline text-label-md text-on-surface sm:text-headline-md truncate max-w-full tabular-nums">
+						{formatMoney(total, currency)}
+					</span>
+				</div>
+			</div>
+
+			<div class="border-outline flex flex-1 flex-col gap-gutter-xs sm:w-full sm:border-t sm:pt-gutter-sm">
+				{#each segments as segment (segment.category.id)}
+					<div class="flex items-center justify-between gap-2 py-1">
+						<span class="font-body text-body-sm text-on-surface sm:text-body-md inline-flex min-w-0 items-center gap-2">
+							<span
+								class="size-2.5 shrink-0 rounded-full"
+								style={`background:${segment.category.color}`}
+								aria-hidden="true"
+							></span>
+							<span class="truncate">{segment.category.emoji} {segment.category.name}</span>
+						</span>
+						<span class="font-label text-label-sm text-on-surface sm:text-label-md shrink-0 tabular-nums">
+							{Math.round(segment.percent)}% · {formatMoney(segment.amount, currency)}
 						</span>
 					</div>
-					<div class="flex shrink-0 items-center gap-2 tabular-nums">
-						<span class="text-muted-foreground text-[11px]">{Math.round(segment.percent)}%</span>
-						<span class="font-semibold">{formatMoney(segment.amount, currency)}</span>
-					</div>
-				</li>
-			{/each}
-		</ul>
-	</div>
-{/if}
+				{/each}
+			</div>
+		</div>
+	{/if}
+</article>

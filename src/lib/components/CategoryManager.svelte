@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import type { Category } from '#lib/types.ts';
 	import { formatMoney, formatNumberWithDots, parseNumberWithDots } from '#lib/finance.ts';
@@ -11,10 +12,12 @@
 	let {
 		categories,
 		currency,
+		initialEditCategory = null,
 		onclose
 	}: {
 		categories: Category[];
 		currency: string;
+		initialEditCategory?: Category | null;
 		onclose: () => void;
 	} = $props();
 
@@ -44,13 +47,19 @@
 			.sort((a, b) => a.name.localeCompare(b.name))
 	);
 
-	let editingId = $state<string | null>(null);
-	let activeTab = $state<'expense' | 'income'>('expense');
-	let name = $state('');
-	let type = $state<'income' | 'expense'>('expense');
-	let color = $state(PALETTE[0]);
-	let emoji = $state('🏷️');
-	let displayBudget = $state('');
+	let editingId = $state<string | null>(untrack(() => initialEditCategory?.id ?? null));
+	let activeTab = $state<'expense' | 'income'>(untrack(() => initialEditCategory?.type ?? 'expense'));
+	let name = $state(untrack(() => initialEditCategory?.name ?? ''));
+	let type = $state<'income' | 'expense'>(untrack(() => initialEditCategory?.type ?? 'expense'));
+	let color = $state(untrack(() => initialEditCategory?.color ?? PALETTE[0]));
+	let emoji = $state(untrack(() => initialEditCategory?.emoji ?? '🏷️'));
+	let displayBudget = $state(
+		untrack(() =>
+			initialEditCategory && initialEditCategory.budget > 0
+				? formatNumberWithDots(initialEditCategory.budget)
+				: ''
+		)
+	);
 	let rawBudget = $derived(parseNumberWithDots(displayBudget));
 
 	function handleBudgetInput(e: Event) {

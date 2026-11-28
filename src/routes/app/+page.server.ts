@@ -5,10 +5,13 @@ import {
 	createTransaction,
 	createTransactionsBatch,
 	deleteCategory,
+	deleteSplitBill,
 	deleteTransaction,
 	deleteWallet,
 	getSettings,
+	getSplitBill,
 	listCategories,
+	listSplitBills,
 	listTransactions,
 	listWallets,
 	MAX_ACCOUNT_LENGTH,
@@ -17,6 +20,7 @@ import {
 	MAX_DESCRIPTION_LENGTH,
 	MAX_NOTES_LENGTH,
 	saveCategory,
+	saveSplitBill,
 	saveWallet,
 	setCurrency,
 	setTheme,
@@ -28,6 +32,7 @@ import {
 	buildCategorySpending,
 	buildMonthTotals,
 	currentMonthKey,
+	formatMoney,
 	isValidDateString,
 	isValidMonthKey,
 	monthKeyFromDate,
@@ -36,7 +41,19 @@ import {
 	sumByType,
 	todayISO
 } from '#lib/finance.ts';
-import type { TransactionInput, Wallet, WalletInput } from '#lib/types.ts';
+import { calculateSplitBill, SPLIT_COLORS } from '#lib/split-bill.ts';
+import type {
+	SplitBill,
+	SplitDiscount,
+	SplitFee,
+	SplitItem,
+	SplitLedgerMode,
+	SplitParticipant,
+	SplitRoundingStep,
+	TransactionInput,
+	Wallet,
+	WalletInput
+} from '#lib/types.ts';
 
 function friendlyGoogleError(cause: unknown): string {
 	if (cause instanceof SheetsError) {
@@ -203,13 +220,15 @@ export const load: PageServerLoad = async ({ locals, cookies, url }) => {
 	let categories;
 	let settings;
 	let wallets: Wallet[] = [];
+	let splitBills: SplitBill[] = [];
 
 	try {
-		[transactions, categories, settings, wallets] = await Promise.all([
+		[transactions, categories, settings, wallets, splitBills] = await Promise.all([
 			listTransactions(accessToken, spreadsheetId),
 			listCategories(accessToken, spreadsheetId),
 			getSettings(accessToken, spreadsheetId),
-			listWallets(accessToken, spreadsheetId)
+			listWallets(accessToken, spreadsheetId),
+			listSplitBills(accessToken, spreadsheetId)
 		]);
 	} catch (cause) {
 		console.error('Could not load finance data:', cause);
@@ -347,6 +366,7 @@ export const load: PageServerLoad = async ({ locals, cookies, url }) => {
 		categorySpending,
 		budgets,
 		wallets,
+		splitBills,
 		availableMonths,
 		today: todayISO()
 	};
@@ -592,6 +612,335 @@ export const actions: Actions = {
 		} catch (cause) {
 			console.error('Could not import transactions:', cause);
 			return fail(502, { error: friendlyGoogleError(cause), action: 'importTransactions' });
+		}
+	},
+
+	saveSplitBill: async ({ request, locals, cookies }) => {
+		const { accessToken, spreadsheetId } = await getWorkspace(locals, cookies);
+		const data = await request.formData();
+		const rawJson = String(data.get('splitBillJson') ?? '').trim();
+
+		if (!rawJson) {
+			return fail(400, { error: 'Data Beli Rame-rame kosong.', action: 'saveSplitBill' });
+		}
+
+		let raw: Record<string, unknown>;
+		try {
+			const parsed = JSON.parse(rawJson);
+			if (!parsed || typeof parsed !== 'object') throw new Error('Invalid JSON');
+			raw = parsed as Record<string, unknown>;
+		} catch {
+			return fail(400, { error: 'Format data Beli Rame-rame tidak valid.', action: 'saveSplitBill' });
+		}
+
+		const id = String(raw.id ?? '').trim() || crypto.randomUUID();
+		const date = String(raw.date ?? '').trim();
+		if (!isValidDateString(date)) {
+			return fail(400, { error: 'Pilih tanggal yang valid.', action: 'saveSplitBill' });
+		}
+
+		const title = String(raw.title ?? '').trim().slice(0, 100) || 'Beli Rame-rame';
+		const merchant = String(raw.merchant ?? '').trim().slice(0, 80);
+		const currency = String(raw.currency ?? 'IDR').trim().toUpperCase().slice(0, 6) || 'IDR';
+		const paymentInfo = String(raw.paymentInfo ?? '').trim().slice(0, 240);
+		const categoryId = String(raw.categoryId ?? '').trim();
+		const account = String(raw.account ?? '').trim().slice(0, MAX_ACCOUNT_LENGTH);
+		const ledgerMode: SplitLedgerMode =
+			raw.ledgerMode === 'my_share' || raw.ledgerMode === 'full_advance'
+				? raw.ledgerMode
+				: 'none';
+		const roundingStep: SplitRoundingStep =
+			raw.roundingStep === 100 || raw.roundingStep === 500 || raw.roundingStep === 1000
+				? raw.roundingStep
+				: 0;
+
+		const rawParticipants = Array.isArray(raw.participants) ? raw.participants : [];
+		const participants: SplitParticipant[] = rawParticipants
+			.slice(0, 40)
+			.map((p, index) => {
+				const row = (p ?? {}) as Record<string, unknown>;
+				return {
+					id: String(row.id ?? '').trim() || `p-${index + 1}`,
+					name: String(row.name ?? '').trim().slice(0, 40) || `Teman ${index + 1}`,
+					isMe: Boolean(row.isMe),
+					color: String(row.color ?? '').trim() || SPLIT_COLORS[index % SPLIT_COLORS.length],
+					paid: Boolean(row.paid),
+					reimbursementTxId:
+						typeof row.reimbursementTxId === 'string' && row.reimbursementTxId.trim()
+							? row.reimbursementTxId.trim()
+							: undefined
+				};
+			})
+			.filter((p) => p.name.length > 0);
+
+		if (participants.length === 0) {
+			return fail(400, { error: 'Tambahkan minimal 1 peserta.', action: 'saveSplitBill' });
+		}
+
+		const rawItems = Array.isArray(raw.items) ? raw.items : [];
+		const items: SplitItem[] = rawItems.slice(0, 100).map((item, index) => {
+			const row = (item ?? {}) as Record<string, unknown>;
+			const sharesObj =
+				row.shares && typeof row.shares === 'object'
+					? (row.shares as Record<string, unknown>)
+					: {};
+			const shares: Record<string, number> = {};
+			for (const [k, v] of Object.entries(sharesObj)) {
+				const w = Number(v);
+				if (Number.isFinite(w) && w > 0) shares[k] = Math.min(w, 999);
+			}
+			const price = Math.min(Math.max(0, Number(row.price) || 0), MAX_AMOUNT);
+			const qty = Math.min(Math.max(0, Number(row.qty) || 1), 999);
+			const itemDiscount = Math.min(Math.max(0, Number(row.itemDiscount) || 0), MAX_AMOUNT);
+
+			return {
+				id: String(row.id ?? '').trim() || `item-${index + 1}`,
+				name: String(row.name ?? '').trim().slice(0, 80) || 'Pesanan',
+				price,
+				qty,
+				itemDiscount,
+				shares
+			};
+		});
+
+		const rawDiscounts = Array.isArray(raw.discounts) ? raw.discounts : [];
+		const discounts: SplitDiscount[] = rawDiscounts.slice(0, 30).map((d, index) => {
+			const row = (d ?? {}) as Record<string, unknown>;
+			const mode = row.mode === 'percent' ? 'percent' : 'fixed';
+			const value = Math.min(Math.max(0, Number(row.value) || 0), mode === 'percent' ? 100 : MAX_AMOUNT);
+			const maxAmount = Number(row.maxAmount);
+			return {
+				id: String(row.id ?? '').trim() || `disc-${index + 1}`,
+				label: String(row.label ?? '').trim().slice(0, 60) || 'Diskon',
+				mode,
+				value,
+				maxAmount: Number.isFinite(maxAmount) && maxAmount > 0 ? Math.min(maxAmount, MAX_AMOUNT) : undefined,
+				target: row.target === 'delivery' ? 'delivery' : 'items',
+				allocation: row.allocation === 'equal' ? 'equal' : 'proportional'
+			};
+		});
+
+		const rawFees = Array.isArray(raw.fees) ? raw.fees : [];
+		const fees: SplitFee[] = rawFees.slice(0, 20).map((f, index) => {
+			const row = (f ?? {}) as Record<string, unknown>;
+			const mode = row.mode === 'percent' ? 'percent' : 'fixed';
+			const value = Math.min(Math.max(0, Number(row.value) || 0), mode === 'percent' ? 100 : MAX_AMOUNT);
+			const kind =
+				row.kind === 'delivery' || row.kind === 'service' || row.kind === 'tax'
+					? row.kind
+					: 'other';
+			return {
+				id: String(row.id ?? '').trim() || `fee-${index + 1}`,
+				label: String(row.label ?? '').trim().slice(0, 60) || 'Biaya Tambahan',
+				mode,
+				value,
+				kind,
+				allocation: row.allocation === 'proportional' ? 'proportional' : 'equal'
+			};
+		});
+
+		const calc = calculateSplitBill({
+			currency,
+			participants,
+			items,
+			discounts,
+			fees,
+			roundingStep
+		});
+
+		if (calc.unassignedAmount > 0) {
+			return fail(400, {
+				error: 'Masih ada menu yang belum dipilih pemesannya. Pilih peserta untuk semua menu terlebih dahulu.',
+				action: 'saveSplitBill'
+			});
+		}
+
+		let ledgerTxId =
+			typeof raw.ledgerTxId === 'string' && raw.ledgerTxId.trim()
+				? raw.ledgerTxId.trim()
+				: undefined;
+
+		try {
+			const txAmount =
+				ledgerMode === 'my_share'
+					? calc.myShare
+					: ledgerMode === 'full_advance'
+						? calc.grandTotal
+						: 0;
+
+			if (ledgerMode !== 'none' && txAmount > 0) {
+				const description = (
+					merchant ? `Beli Rame-rame: ${title} (${merchant})` : `Beli Rame-rame: ${title}`
+				).slice(0, MAX_DESCRIPTION_LENGTH);
+
+				const modeNote = ledgerMode === 'my_share' ? 'Porsi sendiri' : 'Talangan grup';
+				const savedPart =
+					calc.totalDiscount > 0
+						? ` · Hemat ${formatMoney(calc.totalDiscount, currency)}`
+						: '';
+				const notes = `${modeNote} · ${participants.length} orang · Total grup ${formatMoney(calc.grandTotal, currency)}${savedPart}`.slice(
+					0,
+					MAX_NOTES_LENGTH
+				);
+
+				const txInput: TransactionInput = {
+					date,
+					type: 'expense',
+					categoryId,
+					description,
+					amount: txAmount,
+					account,
+					notes
+				};
+
+				if (ledgerTxId) {
+					try {
+						const updatedTx = await updateTransaction(accessToken, spreadsheetId, ledgerTxId, txInput);
+						ledgerTxId = updatedTx.id;
+					} catch (err) {
+						if (err instanceof SheetsError && err.status === 404) {
+							const createdTx = await createTransaction(accessToken, spreadsheetId, txInput);
+							ledgerTxId = createdTx.id;
+						} else {
+							throw err;
+						}
+					}
+				} else {
+					const createdTx = await createTransaction(accessToken, spreadsheetId, txInput);
+					ledgerTxId = createdTx.id;
+				}
+			}
+
+			const now = new Date().toISOString();
+			const splitBill: SplitBill = {
+				id,
+				date,
+				title,
+				merchant,
+				currency,
+				participants,
+				items,
+				discounts,
+				fees,
+				roundingStep,
+				paymentInfo,
+				categoryId,
+				account,
+				ledgerMode,
+				ledgerTxId,
+				grandTotal: calc.grandTotal,
+				myShare: calc.myShare,
+				status: calc.status,
+				createdAt: now,
+				updatedAt: now
+			};
+
+			const saved = await saveSplitBill(accessToken, spreadsheetId, splitBill);
+			return { success: true, action: 'saveSplitBill', id: saved.id };
+		} catch (cause) {
+			console.error('Could not save split bill:', cause);
+			return fail(502, { error: friendlyGoogleError(cause), action: 'saveSplitBill' });
+		}
+	},
+
+	toggleSplitParticipantPaid: async ({ request, locals, cookies }) => {
+		const { accessToken, spreadsheetId } = await getWorkspace(locals, cookies);
+		const data = await request.formData();
+		const id = String(data.get('id') ?? '').trim();
+		const participantId = String(data.get('participantId') ?? '').trim();
+		const paid = String(data.get('paid') ?? '') === 'true';
+		const recordReimbursement = String(data.get('recordReimbursement') ?? '') === 'true';
+		const accountOverride = String(data.get('account') ?? '').trim().slice(0, MAX_ACCOUNT_LENGTH);
+
+		if (!id || !participantId) {
+			return fail(400, {
+				error: 'Data peserta atau sesi Beli Rame-rame tidak lengkap.',
+				action: 'toggleSplitParticipantPaid'
+			});
+		}
+
+		try {
+			const existing = await getSplitBill(accessToken, spreadsheetId, id);
+			if (!existing) {
+				return fail(404, {
+					error: 'Sesi Beli Rame-rame tidak ditemukan.',
+					action: 'toggleSplitParticipantPaid'
+				});
+			}
+
+			const calcBefore = calculateSplitBill(existing);
+			const targetBreakdown = calcBefore.participants.find(
+				(p) => p.participant.id === participantId
+			);
+			if (!targetBreakdown) {
+				return fail(404, {
+					error: 'Peserta tidak ditemukan dalam sesi ini.',
+					action: 'toggleSplitParticipantPaid'
+				});
+			}
+
+			let reimbursementTxId = targetBreakdown.participant.reimbursementTxId;
+
+			if (
+				paid &&
+				recordReimbursement &&
+				!reimbursementTxId &&
+				targetBreakdown.finalAmount > 0
+			) {
+				const createdTx = await createTransaction(accessToken, spreadsheetId, {
+					date: todayISO(),
+					type: 'income',
+					categoryId: '',
+					description: `Pelunasan: ${targetBreakdown.participant.name} — ${existing.title}`.slice(
+						0,
+						MAX_DESCRIPTION_LENGTH
+					),
+					amount: targetBreakdown.finalAmount,
+					account: accountOverride || existing.account,
+					notes: `Pelunasan Beli Rame-rame (${existing.title})`.slice(0, MAX_NOTES_LENGTH)
+				});
+				reimbursementTxId = createdTx.id;
+			}
+
+			const updatedParticipants = existing.participants.map((p) =>
+				p.id === participantId ? { ...p, paid, reimbursementTxId } : p
+			);
+
+			const draft: SplitBill = {
+				...existing,
+				participants: updatedParticipants
+			};
+			const calcAfter = calculateSplitBill(draft);
+			draft.status = calcAfter.status;
+			draft.grandTotal = calcAfter.grandTotal;
+			draft.myShare = calcAfter.myShare;
+
+			const saved = await saveSplitBill(accessToken, spreadsheetId, draft);
+			return { success: true, action: 'toggleSplitParticipantPaid', id: saved.id };
+		} catch (cause) {
+			console.error('Could not update participant payment status:', cause);
+			return fail(502, {
+				error: friendlyGoogleError(cause),
+				action: 'toggleSplitParticipantPaid'
+			});
+		}
+	},
+
+	deleteSplitBill: async ({ request, locals, cookies }) => {
+		const { accessToken, spreadsheetId, sheetIds } = await getWorkspace(locals, cookies);
+		const data = await request.formData();
+		const id = String(data.get('id') ?? '').trim();
+
+		if (!id) {
+			return fail(400, { error: 'ID sesi Beli Rame-rame tidak ditemukan.', action: 'deleteSplitBill' });
+		}
+
+		try {
+			await deleteSplitBill(accessToken, spreadsheetId, id, sheetIds.splitBills);
+			return { success: true, action: 'deleteSplitBill', id };
+		} catch (cause) {
+			console.error('Could not delete split bill:', cause);
+			return fail(502, { error: friendlyGoogleError(cause), action: 'deleteSplitBill', id });
 		}
 	}
 };

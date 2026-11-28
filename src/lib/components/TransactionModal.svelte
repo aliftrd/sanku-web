@@ -113,36 +113,43 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-	class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-xs"
+	class="bg-on-surface/40 fixed inset-0 z-50 flex items-center justify-center p-gutter-md"
 	role="presentation"
 	onclick={(event) => {
 		if (event.target === event.currentTarget && !saving) onclose();
 	}}
 >
 	<div
-		class="bg-card text-card-foreground border-border flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border shadow-xl"
+		class="bg-surface-card text-on-surface border-outline flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-lg border shadow-xl"
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="tx-modal-title"
 	>
-		<header class="border-border flex shrink-0 items-start justify-between border-b px-5 py-4 sm:px-6">
-			<div class="space-y-1">
-				<p class="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
-					{isEdit ? 'Edit transaction' : transaction ? 'Duplicate transaction' : type === 'transfer' ? 'Transfer funds' : 'New transaction'}
-				</p>
-				<h2 id="tx-modal-title" class="text-lg font-bold tracking-tight">
+		<header class="border-outline flex shrink-0 items-center justify-between border-b px-gutter-lg py-gutter-md">
+			<div>
+				<h2 id="tx-modal-title" class="font-title text-title-lg text-on-surface">
 					{isEdit
-						? 'Update this entry'
+						? 'Edit Transaction'
 						: transaction
-							? 'Create duplicate entry'
+							? 'Duplicate Transaction'
 							: type === 'transfer'
-								? 'Move money between accounts'
-								: 'Record money in or out'}
+								? 'Transfer Funds'
+								: 'New Transaction'}
 				</h2>
+				<p class="font-body text-body-sm text-on-surface-variant">
+					{type === 'transfer'
+						? 'Move money between your accounts'
+						: 'Synced directly to your Google Sheet ledger'}
+				</p>
 			</div>
-			<Button variant="ghost" size="icon-sm" aria-label="Close" onclick={onclose}>
-				✕
-			</Button>
+			<button
+				type="button"
+				aria-label="Close dialog"
+				onclick={onclose}
+				class="border-outline text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface inline-flex size-8 cursor-pointer items-center justify-center rounded border transition-colors"
+			>
+				<span class="material-symbols-outlined text-[18px]" aria-hidden="true">close</span>
+			</button>
 		</header>
 
 		<form
@@ -191,47 +198,44 @@
 				{/if}
 
 				<!-- Segmented Transaction Type Selector -->
-				<div class="bg-muted grid grid-cols-3 gap-1 rounded-lg p-1" role="group" aria-label="Transaction type">
+				<div class="bg-surface-container-low border-outline grid grid-cols-3 rounded border p-1" role="group" aria-label="Transaction type">
 					<button
 						type="button"
 						class={cn(
-							'flex h-8 cursor-pointer items-center justify-center gap-2 rounded-md text-xs font-semibold transition-all',
+							'font-label text-label-md flex cursor-pointer items-center justify-center gap-1.5 rounded-sm py-1.5 transition-all',
 							type === 'expense'
-								? 'bg-card text-foreground shadow-2xs'
-								: 'text-muted-foreground hover:text-foreground'
+								? 'bg-surface-card text-expense shadow-xs'
+								: 'text-on-surface-variant hover:text-on-surface'
 						)}
 						aria-pressed={type === 'expense'}
 						onclick={() => setType('expense')}
 					>
-						<span class="size-2 rounded-full bg-rose-500"></span>
 						Expense
 					</button>
 					<button
 						type="button"
 						class={cn(
-							'flex h-8 cursor-pointer items-center justify-center gap-2 rounded-md text-xs font-semibold transition-all',
+							'font-label text-label-md flex cursor-pointer items-center justify-center gap-1.5 rounded-sm py-1.5 transition-all',
 							type === 'income'
-								? 'bg-card text-foreground shadow-2xs'
-								: 'text-muted-foreground hover:text-foreground'
+								? 'bg-surface-card text-on-income-container shadow-xs'
+								: 'text-on-surface-variant hover:text-on-surface'
 						)}
 						aria-pressed={type === 'income'}
 						onclick={() => setType('income')}
 					>
-						<span class="size-2 rounded-full bg-emerald-500"></span>
 						Income
 					</button>
 					<button
 						type="button"
 						class={cn(
-							'flex h-8 cursor-pointer items-center justify-center gap-2 rounded-md text-xs font-semibold transition-all',
+							'font-label text-label-md flex cursor-pointer items-center justify-center gap-1.5 rounded-sm py-1.5 transition-all',
 							type === 'transfer'
-								? 'bg-card text-foreground shadow-2xs'
-								: 'text-muted-foreground hover:text-foreground'
+								? 'bg-surface-card text-theme-sky shadow-xs'
+								: 'text-on-surface-variant hover:text-on-surface'
 						)}
 						aria-pressed={type === 'transfer'}
 						onclick={() => setType('transfer')}
 					>
-						<span class="size-2 rounded-full bg-sky-500"></span>
 						Transfer
 					</button>
 				</div>
@@ -239,13 +243,12 @@
 				<!-- Prominent Amount Input -->
 				<div
 					class={cn(
-						'border-border bg-muted/40 flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors focus-within:ring-2',
-						type === 'income' && 'border-emerald-200 bg-emerald-50/50 focus-within:ring-emerald-500/30',
-						type === 'transfer' && 'border-sky-200 bg-sky-50/50 focus-within:ring-sky-500/30',
-						type === 'expense' && 'focus-within:ring-ring/25'
+						'border-outline bg-surface-card flex items-center gap-3 rounded border px-4 py-3 transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-primary',
+						type === 'income' && 'border-income/40 bg-income-container/30',
+						type === 'transfer' && 'border-theme-sky/40 bg-secondary-container/30'
 					)}
 				>
-					<span class="text-muted-foreground text-sm font-bold">{currency}</span>
+					<span class="font-headline text-headline-md text-on-surface-variant">{currency}</span>
 					<input
 						type="hidden"
 						name="amount"
@@ -260,10 +263,10 @@
 						oninput={handleAmountInput}
 						required
 						class={cn(
-							'w-full bg-transparent font-mono text-2xl font-bold tabular-nums outline-none placeholder:text-muted-foreground/50',
-							type === 'income' && 'text-emerald-700',
-							type === 'transfer' && 'text-sky-700',
-							type === 'expense' && 'text-foreground'
+							'font-headline text-headline-lg w-full bg-transparent tabular-nums outline-none placeholder:text-on-surface-variant/45',
+							type === 'income' && 'text-on-income-container',
+							type === 'transfer' && 'text-theme-sky',
+							type === 'expense' && 'text-on-surface'
 						)}
 					/>
 				</div>

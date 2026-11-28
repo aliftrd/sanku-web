@@ -13,16 +13,11 @@
 </script>
 
 {#snippet brandMark()}
-	<svg class="size-7 shrink-0" viewBox="0 0 32 32" aria-hidden="true">
-		<rect width="32" height="32" rx="8" fill="#0f172a" />
-		<path
-			d="M8.5 22.5V14M14 22.5V8.5M19.5 22.5V16.5M25 22.5V11"
-			stroke="#ffffff"
-			stroke-width="2.2"
-			stroke-linecap="round"
-		/>
-		<circle cx="25" cy="22.5" r="2.2" fill="#f97316" />
-	</svg>
+	<span class="bg-accent-orange text-on-primary flex size-8 shrink-0 items-center justify-center rounded shadow-xs" aria-hidden="true">
+		<svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+		</svg>
+	</span>
 {/snippet}
 
 {#snippet googleIcon(size = 18)}
@@ -64,9 +59,9 @@
 	<!-- Floating Pill Navigation Bar -->
 	<header class="sticky top-4 z-40 mx-auto max-w-5xl px-4">
 		<div class="border-border bg-card/90 flex h-13 items-center justify-between gap-4 rounded-full border px-4 shadow-sm backdrop-blur-md">
-			<a class="flex items-center gap-2.5" href="/" aria-label="Sanku home">
+			<a class="flex items-center gap-2" href="/" aria-label="Sanku home">
 				{@render brandMark()}
-				<strong class="text-base font-semibold tracking-tight">Sanku</strong>
+				<strong class="font-headline text-headline-md text-on-surface tracking-tight">Sanku</strong>
 			</a>
 
 			<nav class="text-muted-foreground hidden items-center gap-6 text-xs font-medium md:flex" aria-label="Main navigation">
@@ -121,7 +116,7 @@
 		<section class="mx-auto max-w-3xl pt-14 pb-12 text-center sm:pt-20 sm:pb-16">
 			<Badge variant="secondary" class="mb-5">Zero private database · Google Drive sync</Badge>
 
-			<h1 class="text-4xl font-bold tracking-tight text-balance sm:text-6xl">
+			<h1 class="font-headline text-4xl tracking-tight text-balance sm:text-6xl">
 				Financial clarity in a sheet you own.
 			</h1>
 

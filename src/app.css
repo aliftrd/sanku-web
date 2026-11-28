@@ -7,48 +7,57 @@
 	--card-foreground: #0f172a;
 	--popover: #ffffff;
 	--popover-foreground: #0f172a;
-	--primary: #0f172a;
+	--primary: #9c4400;
 	--primary-foreground: #ffffff;
+	--primary-container: #ffede5;
+	--on-primary-container: #542200;
 	--secondary: #f1f5f9;
 	--secondary-foreground: #0f172a;
 	--muted: #f1f5f9;
-	--muted-foreground: #64748b;
+	--muted-foreground: #475569;
 	--accent: #f1f5f9;
 	--accent-foreground: #0f172a;
-	--destructive: #ef4444;
+	--destructive: #f43f5e;
 	--destructive-foreground: #ffffff;
 	--border: #e2e8f0;
 	--input: #e2e8f0;
-	--ring: #0f172a;
-	--theme-accent: #f97316;
-	--theme-accent-soft: #fff7ed;
+	--ring: #9c4400;
+	--theme-accent: #e9762b;
+	--theme-accent-soft: #ffede5;
 }
 
 [data-theme='orange'] {
-	--primary: #0f172a;
+	--primary: #9c4400;
 	--primary-foreground: #ffffff;
-	--ring: #f97316;
-	--theme-accent: #f97316;
-	--theme-accent-soft: #fff7ed;
+	--primary-container: #ffede5;
+	--on-primary-container: #542200;
+	--ring: #9c4400;
+	--theme-accent: #e9762b;
+	--theme-accent-soft: #ffede5;
 }
 
 [data-theme='sky'] {
-	--primary: #0284c7;
+	--primary: #0369a1;
 	--primary-foreground: #ffffff;
-	--ring: #0284c7;
+	--primary-container: #e7f2ff;
+	--on-primary-container: #003351;
+	--ring: #0369a1;
 	--theme-accent: #0284c7;
-	--theme-accent-soft: #f0f9ff;
+	--theme-accent-soft: #e7f2ff;
 }
 
 [data-theme='forest'] {
-	--primary: #059669;
+	--primary: #047857;
 	--primary-foreground: #ffffff;
-	--ring: #059669;
+	--primary-container: #ecfdf5;
+	--on-primary-container: #003825;
+	--ring: #047857;
 	--theme-accent: #059669;
 	--theme-accent-soft: #ecfdf5;
 }
 
 @theme inline {
+	/* Legacy & shadcn compatibility tokens */
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
 	--color-card: var(--card);
@@ -68,12 +77,133 @@
 	--color-border: var(--border);
 	--color-input: var(--input);
 	--color-ring: var(--ring);
-	--font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-	--font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, monospace;
-	--radius-xl: 0.875rem;
-	--radius-lg: 0.625rem;
-	--radius-md: 0.5rem;
-	--radius-sm: 0.375rem;
+
+	/* Sanku Stitch Fintech Design System tokens */
+	--color-accent-orange: var(--theme-accent);
+	--color-swatch-orange: #e9762b;
+	--color-theme-sky: #0284c7;
+	--color-theme-forest: #059669;
+	--color-on-primary: var(--primary-foreground);
+	--color-primary-container: var(--primary-container);
+	--color-on-primary-container: var(--on-primary-container);
+	--color-secondary-accent: #0369a1;
+	--color-secondary-container: #e7f2ff;
+	--color-on-secondary-container: #003351;
+	--color-tertiary: #047857;
+	--color-tertiary-container: #ecfdf5;
+	--color-on-tertiary-container: #003825;
+
+	--color-income: #10b981;
+	--color-income-container: #ecfdf5;
+	--color-on-income-container: #065f46;
+	--color-expense: #f43f5e;
+	--color-expense-container: #fff1f2;
+	--color-on-expense-container: #9f1239;
+	--color-warning: #d97706;
+	--color-warning-container: #fffbeb;
+	--color-on-warning-container: #92400e;
+	--color-error: #e11d48;
+	--color-error-container: #fff1f2;
+	--color-on-error-container: #9f1239;
+
+	--color-surface: #f8fafc;
+	--color-surface-bg: #f8fafc;
+	--color-surface-card: #ffffff;
+	--color-surface-border: #e2e8f0;
+	--color-surface-container-low: #f1f5f9;
+	--color-surface-container: #ffffff;
+	--color-surface-container-high: #f8fafc;
+	--color-on-surface: #0f172a;
+	--color-on-surface-variant: #475569;
+	--color-outline: #e2e8f0;
+	--color-outline-variant: #cbd5e1;
+
+	/* Typography families */
+	--font-display: 'Alata', sans-serif;
+	--font-headline: 'Alata', sans-serif;
+	--font-title: 'Instrument Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+	--font-body: 'Instrument Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+	--font-label: 'Instrument Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+	--font-sans: 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	--font-mono: 'Spline Sans Mono', ui-monospace, SFMono-Regular, monospace;
+
+	/* Stitch typography scale */
+	--text-display-lg: 36px;
+	--text-display-lg--line-height: 44px;
+	--text-display-lg--letter-spacing: -0.5px;
+	--text-display-lg--font-weight: 400;
+
+	--text-headline-lg: 24px;
+	--text-headline-lg--line-height: 32px;
+	--text-headline-lg--letter-spacing: -0.25px;
+	--text-headline-lg--font-weight: 400;
+
+	--text-headline-md: 20px;
+	--text-headline-md--line-height: 28px;
+	--text-headline-md--letter-spacing: -0.15px;
+	--text-headline-md--font-weight: 400;
+
+	--text-title-lg: 18px;
+	--text-title-lg--line-height: 26px;
+	--text-title-lg--letter-spacing: -0.1px;
+	--text-title-lg--font-weight: 600;
+
+	--text-title-md: 15px;
+	--text-title-md--line-height: 22px;
+	--text-title-md--letter-spacing: 0px;
+	--text-title-md--font-weight: 600;
+
+	--text-body-lg: 15px;
+	--text-body-lg--line-height: 22px;
+	--text-body-lg--font-weight: 400;
+
+	--text-body-md: 14px;
+	--text-body-md--line-height: 20px;
+	--text-body-md--font-weight: 400;
+
+	--text-body-sm: 12px;
+	--text-body-sm--line-height: 16px;
+	--text-body-sm--font-weight: 400;
+
+	--text-label-lg: 14px;
+	--text-label-lg--line-height: 20px;
+	--text-label-lg--font-weight: 600;
+
+	--text-label-md: 13px;
+	--text-label-md--line-height: 18px;
+	--text-label-md--font-weight: 500;
+
+	--text-label-sm: 12px;
+	--text-label-sm--line-height: 16px;
+	--text-label-sm--letter-spacing: 0.2px;
+	--text-label-sm--font-weight: 600;
+
+	--text-mono-sm: 12px;
+	--text-mono-sm--line-height: 16px;
+	--text-mono-sm--font-weight: 500;
+
+	/* Stitch spacing scale */
+	--spacing-gutter-xs: 4px;
+	--spacing-gutter-sm: 8px;
+	--spacing-gutter-md: 16px;
+	--spacing-gutter-lg: 24px;
+	--spacing-gutter-xl: 32px;
+	--spacing-section: 24px;
+	--spacing-page-margin: 24px;
+
+	/* Stitch shapes */
+	--radius-sm: 4px;
+	--radius-md: 12px;
+	--radius-lg: 16px;
+	--radius-xl: 16px;
+
+	/* Motion */
+	--transition-duration-state-change: 120ms;
+	--transition-duration-surface-enter: 200ms;
+}
+
+@utility rounded {
+	border-radius: 8px;
 }
 
 @layer base {
@@ -82,10 +212,27 @@
 	}
 
 	body {
-		@apply bg-background text-foreground font-sans antialiased;
+		@apply bg-surface text-on-surface font-body antialiased;
 	}
 
 	* {
-		@apply border-border;
+		@apply border-outline;
+	}
+
+	.material-symbols-outlined {
+		font-family: 'Material Symbols Outlined';
+		font-weight: normal;
+		font-style: normal;
+		line-height: 1;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		user-select: none;
+		vertical-align: middle;
+		font-variation-settings:
+			'FILL' 0,
+			'wght' 400,
+			'GRAD' 0,
+			'opsz' 20;
 	}
 }

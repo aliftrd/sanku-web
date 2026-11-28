@@ -65,6 +65,7 @@ export type SheetIds = {
 	categories: number;
 	settings: number;
 	wallets?: number;
+	splitBills?: number;
 };
 
 export type Workspace = {
@@ -114,4 +115,75 @@ export type CategoryInput = {
 	color: string;
 	emoji: string;
 	budget: number;
+};
+
+export type SplitParticipant = {
+	id: string;
+	name: string;
+	isMe?: boolean;
+	color: string;
+	paid: boolean;
+	reimbursementTxId?: string;
+};
+
+export type SplitItem = {
+	id: string;
+	name: string;
+	price: number;
+	qty: number;
+	itemDiscount: number;
+	shares: Record<string, number>;
+};
+
+export type SplitDiscount = {
+	id: string;
+	label: string;
+	mode: 'percent' | 'fixed';
+	value: number;
+	maxAmount?: number;
+	target: 'items' | 'delivery';
+	allocation: 'proportional' | 'equal';
+};
+
+export type SplitFee = {
+	id: string;
+	label: string;
+	mode: 'fixed' | 'percent';
+	value: number;
+	kind: 'delivery' | 'service' | 'tax' | 'other';
+	allocation: 'equal' | 'proportional';
+};
+
+export type SplitLedgerMode = 'none' | 'my_share' | 'full_advance';
+
+export type SplitRoundingStep = 0 | 100 | 500 | 1000;
+
+export type SplitBill = {
+	id: string;
+	date: string; // YYYY-MM-DD
+	title: string;
+	merchant: string;
+	currency: string;
+	participants: SplitParticipant[];
+	items: SplitItem[];
+	discounts: SplitDiscount[];
+	fees: SplitFee[];
+	roundingStep: SplitRoundingStep;
+	paymentInfo: string;
+	categoryId: string;
+	account: string;
+	ledgerMode: SplitLedgerMode;
+	ledgerTxId?: string;
+	grandTotal: number;
+	myShare: number;
+	status: 'open' | 'settled';
+	createdAt: string;
+	updatedAt: string;
+};
+
+export type SplitBillInput = Omit<
+	SplitBill,
+	'id' | 'grandTotal' | 'myShare' | 'status' | 'createdAt' | 'updatedAt'
+> & {
+	id?: string;
 };

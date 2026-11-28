@@ -4,23 +4,25 @@
 
 	export const buttonVariants = tv({
 		base: cn(
-			'inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all',
-			'outline-none focus-visible:ring-2 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:opacity-50',
+			'font-label inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded text-label-md whitespace-nowrap transition-colors duration-state-change',
+			'focus-visible:ring-primary focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-45',
 			'[&_svg]:pointer-events-none [&_svg]:shrink-0'
 		),
 		variants: {
 			variant: {
-				default: 'bg-primary text-primary-foreground shadow-2xs hover:bg-primary/90',
-				destructive: 'bg-destructive text-destructive-foreground shadow-2xs hover:bg-destructive/90',
-				outline: 'border-border bg-card text-foreground hover:bg-accent hover:text-accent-foreground border shadow-2xs',
-				secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-				ghost: 'hover:bg-accent hover:text-accent-foreground',
+				default: 'bg-primary text-on-primary hover:opacity-95',
+				destructive: 'bg-expense text-white hover:opacity-95',
+				outline:
+					'border-outline bg-surface-card text-on-surface hover:bg-surface-container-low hover:border-outline-variant border',
+				secondary:
+					'bg-surface-container-low text-on-surface hover:bg-outline/70 border border-transparent',
+				ghost: 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface',
 				link: 'text-primary underline-offset-4 hover:underline'
 			},
 			size: {
-				default: 'h-9 px-4 py-2',
-				sm: 'h-8 rounded-md px-3 text-xs',
-				lg: 'h-10 rounded-md px-6',
+				default: 'h-9 px-4 py-2 text-label-lg',
+				sm: 'h-8 rounded px-3 text-label-md',
+				lg: 'h-10 rounded px-6 text-label-lg',
 				icon: 'size-9',
 				'icon-sm': 'size-8'
 			}

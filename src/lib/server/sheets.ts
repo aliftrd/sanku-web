@@ -3,6 +3,7 @@ import type {
 	CategoryInput,
 	FinanceSettings,
 	SheetIds,
+	SplitBill,
 	Transaction,
 	TransactionInput,
 	Workspace
@@ -19,6 +20,7 @@ const TX_SHEET = 'Transactions';
 const CAT_SHEET = 'Categories';
 const SET_SHEET = 'Settings';
 const WALLET_SHEET = 'Wallets';
+const SPLIT_SHEET = 'SplitBills';
 
 const TX_HEADER = [
 	'id',
@@ -43,6 +45,21 @@ const WALLET_HEADER = [
 	'color',
 	'icon',
 	'created_at'
+] as const;
+
+const SPLIT_HEADER = [
+	'id',
+	'date',
+	'title',
+	'merchant',
+	'currency',
+	'grand_total',
+	'my_share',
+	'status',
+	'ledger_mode',
+	'payload_json',
+	'created_at',
+	'updated_at'
 ] as const;
 
 export const MAX_DESCRIPTION_LENGTH = 160;
@@ -364,6 +381,12 @@ async function createSpreadsheet(accessToken: string): Promise<Workspace> {
 						title: SET_SHEET,
 						gridProperties: { frozenRowCount: 1 }
 					}
+				},
+				{
+					properties: {
+						title: SPLIT_SHEET,
+						gridProperties: { frozenRowCount: 1 }
+					}
 				}
 			]
 		})
@@ -497,6 +520,9 @@ async function writeAllHeaders(
 	if (typeof sheetIds.wallets === 'number') {
 		await writeHeader(accessToken, spreadsheetId, sheetIds.wallets, WALLET_SHEET, WALLET_HEADER);
 	}
+	if (typeof sheetIds.splitBills === 'number') {
+		await writeHeader(accessToken, spreadsheetId, sheetIds.splitBills, SPLIT_SHEET, SPLIT_HEADER);
+	}
 }
 
 function requireSheetIds(ids: Map<string, number>): SheetIds {
@@ -504,6 +530,7 @@ function requireSheetIds(ids: Map<string, number>): SheetIds {
 	const categories = ids.get(CAT_SHEET);
 	const settings = ids.get(SET_SHEET);
 	const wallets = ids.get(WALLET_SHEET);
+	const splitBills = ids.get(SPLIT_SHEET);
 
 	if (
 		typeof transactions !== 'number' ||
@@ -513,7 +540,7 @@ function requireSheetIds(ids: Map<string, number>): SheetIds {
 		throw new SheetsError(500, 'Google did not return all of the required sheet tabs.');
 	}
 
-	return { transactions, categories, settings, wallets };
+	return { transactions, categories, settings, wallets, splitBills };
 }
 
 export async function ensureWalletSheet(
@@ -1167,6 +1194,244 @@ export async function deleteWallet(
 					deleteDimension: {
 						range: {
 							sheetId: walletSheetId,
+							dimension: 'ROWS',
+							startIndex: match.row - 1,
+							endIndex: match.row
+						}
+					}
+				}
+			]
+		})
+	});
+}
+
+export async function ensureSplitBillsSheet(
+	accessToken: string,
+	spreadsheetId: string
+): Promise<number> {
+	const meta = await googleFetch<SpreadsheetMeta>(
+		`${SHEETS_API}/${spreadsheetId}?fields=sheets(properties(sheetId,title))`,
+		accessToken
+	);
+
+	const existing = meta.sheets?.find((sheet) => sheet.properties?.title === SPLIT_SHEET);
+	if (typeof existing?.properties?.sheetId === 'number') {
+		return existing.properties.sheetId;
+	}
+
+	const updated = await googleFetch<BatchUpdateResponse>(
+		batchUpdateUrl(spreadsheetId),
+		accessToken,
+		{
+			method: 'POST',
+			body: JSON.stringify({
+				requests: [
+					{
+						addSheet: {
+							properties: {
+								title: SPLIT_SHEET,
+								gridProperties: { frozenRowCount: 1 }
+							}
+						}
+					}
+				]
+			})
+		}
+	);
+
+	const sheetId = updated.replies?.[0]?.addSheet?.properties?.sheetId ?? 0;
+	await writeHeader(accessToken, spreadsheetId, sheetId, SPLIT_SHEET, SPLIT_HEADER);
+	return sheetId;
+}
+
+function toSplitBill(values: string[]): SplitBill | null {
+	const [
+		id,
+		date,
+		title = '',
+		merchant = '',
+		currency = DEFAULT_CURRENCY,
+		rawGrandTotal = '0',
+		rawMyShare = '0',
+		rawStatus = 'open',
+		rawLedgerMode = 'none',
+		payloadJson = '',
+		createdAt = '',
+		updatedAt = ''
+	] = values;
+
+	if (!id || !date) return null;
+
+	let parsedPayload: Partial<SplitBill> = {};
+	if (payloadJson) {
+		try {
+			const obj = JSON.parse(payloadJson);
+			if (obj && typeof obj === 'object') {
+				parsedPayload = obj as Partial<SplitBill>;
+			}
+		} catch {
+			// Ignore corrupted JSON payload and fall back to tabular columns
+		}
+	}
+
+	const grandTotal = Number(rawGrandTotal);
+	const myShare = Number(rawMyShare);
+	const ledgerMode =
+		rawLedgerMode === 'my_share' || rawLedgerMode === 'full_advance' ? rawLedgerMode : 'none';
+	const status = rawStatus === 'settled' ? 'settled' : 'open';
+	const roundingStep =
+		parsedPayload.roundingStep === 100 ||
+		parsedPayload.roundingStep === 500 ||
+		parsedPayload.roundingStep === 1000
+			? parsedPayload.roundingStep
+			: 0;
+
+	return {
+		id,
+		date,
+		title: title || parsedPayload.title || 'Beli Rame-rame',
+		merchant: merchant || parsedPayload.merchant || '',
+		currency: currency || parsedPayload.currency || DEFAULT_CURRENCY,
+		participants: Array.isArray(parsedPayload.participants) ? parsedPayload.participants : [],
+		items: Array.isArray(parsedPayload.items) ? parsedPayload.items : [],
+		discounts: Array.isArray(parsedPayload.discounts) ? parsedPayload.discounts : [],
+		fees: Array.isArray(parsedPayload.fees) ? parsedPayload.fees : [],
+		roundingStep,
+		paymentInfo: typeof parsedPayload.paymentInfo === 'string' ? parsedPayload.paymentInfo : '',
+		categoryId: typeof parsedPayload.categoryId === 'string' ? parsedPayload.categoryId : '',
+		account: typeof parsedPayload.account === 'string' ? parsedPayload.account : '',
+		ledgerMode,
+		ledgerTxId: typeof parsedPayload.ledgerTxId === 'string' ? parsedPayload.ledgerTxId : undefined,
+		grandTotal: Number.isFinite(grandTotal) ? grandTotal : 0,
+		myShare: Number.isFinite(myShare) ? myShare : 0,
+		status,
+		createdAt: createdAt || updatedAt || new Date().toISOString(),
+		updatedAt: updatedAt || createdAt || new Date().toISOString()
+	};
+}
+
+function splitBillToRow(bill: SplitBill): string[] {
+	const payload = JSON.stringify({
+		participants: bill.participants,
+		items: bill.items,
+		discounts: bill.discounts,
+		fees: bill.fees,
+		roundingStep: bill.roundingStep,
+		paymentInfo: bill.paymentInfo,
+		categoryId: bill.categoryId,
+		account: bill.account,
+		ledgerTxId: bill.ledgerTxId
+	});
+
+	return [
+		bill.id,
+		bill.date,
+		bill.title,
+		bill.merchant,
+		bill.currency,
+		String(bill.grandTotal),
+		String(bill.myShare),
+		bill.status,
+		bill.ledgerMode,
+		payload,
+		bill.createdAt,
+		bill.updatedAt
+	];
+}
+
+export async function listSplitBills(
+	accessToken: string,
+	spreadsheetId: string
+): Promise<SplitBill[]> {
+	let rows: Array<{ row: number; values: string[] }> = [];
+	try {
+		rows = await readRows(accessToken, spreadsheetId, `${SPLIT_SHEET}!A2:L`);
+	} catch (err) {
+		if (err instanceof SheetsError && err.status === 400) {
+			return [];
+		}
+		throw err;
+	}
+
+	return rows
+		.map(({ values }) => toSplitBill(values))
+		.filter((bill): bill is SplitBill => bill !== null)
+		.sort((a, b) => {
+			const byDate = b.date.localeCompare(a.date);
+			if (byDate !== 0) return byDate;
+			return b.createdAt.localeCompare(a.createdAt);
+		});
+}
+
+export async function getSplitBill(
+	accessToken: string,
+	spreadsheetId: string,
+	id: string
+): Promise<SplitBill | null> {
+	const bills = await listSplitBills(accessToken, spreadsheetId);
+	return bills.find((bill) => bill.id === id) ?? null;
+}
+
+export async function saveSplitBill(
+	accessToken: string,
+	spreadsheetId: string,
+	bill: SplitBill
+): Promise<SplitBill> {
+	await ensureSplitBillsSheet(accessToken, spreadsheetId);
+
+	const rows = await readRows(accessToken, spreadsheetId, `${SPLIT_SHEET}!A2:L`);
+	const match = rows.find(({ values }) => values[0] === bill.id);
+	const now = new Date().toISOString();
+
+	const saved: SplitBill = {
+		...bill,
+		createdAt: match?.values[10] || bill.createdAt || now,
+		updatedAt: now
+	};
+
+	const rowValues = splitBillToRow(saved);
+
+	if (match) {
+		await writeValues(accessToken, spreadsheetId, `${SPLIT_SHEET}!A${match.row}:L${match.row}`, [
+			rowValues
+		]);
+	} else {
+		await appendRows(accessToken, spreadsheetId, `${SPLIT_SHEET}!A:L`, [rowValues]);
+	}
+
+	return saved;
+}
+
+export async function deleteSplitBill(
+	accessToken: string,
+	spreadsheetId: string,
+	id: string,
+	sheetId?: number
+): Promise<void> {
+	const splitSheetId =
+		typeof sheetId === 'number'
+			? sheetId
+			: await ensureSplitBillsSheet(accessToken, spreadsheetId);
+
+	let rows: Array<{ row: number; values: string[] }> = [];
+	try {
+		rows = await readRows(accessToken, spreadsheetId, `${SPLIT_SHEET}!A2:L`);
+	} catch (err) {
+		if (err instanceof SheetsError && err.status === 400) return;
+		throw err;
+	}
+
+	const match = rows.find(({ values }) => values[0] === id);
+	if (!match) return;
+
+	await googleFetch(batchUpdateUrl(spreadsheetId), accessToken, {
+		method: 'POST',
+		body: JSON.stringify({
+			requests: [
+				{
+					deleteDimension: {
+						range: {
+							sheetId: splitSheetId,
 							dimension: 'ROWS',
 							startIndex: match.row - 1,
 							endIndex: match.row

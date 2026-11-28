@@ -23,8 +23,15 @@
 		months?: MonthTotal[];
 	} = $props();
 
-	let selectedRange = $state<CashflowRange>('7D');
-	let hovered = $state<string | null>(null);
+	let selectedRange = $state<CashflowRange>('1M');
+	let hoveredIndex = $state<number | null>(null);
+
+	const RANGES: Array<{ value: CashflowRange; label: string }> = [
+		{ value: '7D', label: '7D' },
+		{ value: '1M', label: '1M' },
+		{ value: '6M', label: '6M' },
+		{ value: '1Y', label: '1Y' }
+	];
 
 	let items = $derived.by(() => {
 		if (selectedRange === '7D') {
@@ -44,7 +51,6 @@
 			return buildMonthTotals(transactions, month, 12);
 		}
 
-		// '6M' default
 		if (initialMonths.length > 0 && initialMonths[initialMonths.length - 1]?.key === month) {
 			return initialMonths;
 		}
@@ -55,163 +61,214 @@
 		Math.max(1, ...items.flatMap((item) => [item.income, item.expense]))
 	);
 
-	function barHeight(value: number): string {
-		if (value <= 0) return '0%';
-		return `${Math.max(4, (value / maxValue) * 100)}%`;
+	// Nice rounded ceiling for clean Y-axis ticks
+	let yMax = $derived.by(() => {
+		const raw = maxValue;
+		if (raw <= 1) return 100;
+		const mag = 10 ** Math.floor(Math.log10(raw));
+		const step = mag / 2;
+		return Math.ceil(raw / step) * step;
+	});
+
+	const PLOT_LEFT = 54;
+	const PLOT_RIGHT = 544;
+	const PLOT_TOP = 18;
+	const PLOT_BOTTOM = 154;
+	const PLOT_HEIGHT = PLOT_BOTTOM - PLOT_TOP;
+	const PLOT_WIDTH = PLOT_RIGHT - PLOT_LEFT;
+
+	let yTicks = $derived([
+		{ y: PLOT_TOP, value: yMax },
+		{ y: PLOT_TOP + PLOT_HEIGHT / 3, value: (yMax * 2) / 3 },
+		{ y: PLOT_TOP + (PLOT_HEIGHT * 2) / 3, value: yMax / 3 },
+		{ y: PLOT_BOTTOM, value: 0 }
+	]);
+
+	function barRectHeight(value: number): number {
+		if (value <= 0) return 2;
+		return Math.max(4, (value / yMax) * PLOT_HEIGHT);
 	}
 
-	let bestPeriod = $derived(
-		items.reduce<MonthTotal | null>((best, item) => {
-			if (!best || item.net > best.net) return item;
-			return best;
-		}, null)
-	);
+	function compactTick(value: number): string {
+		if (value <= 0) return '0';
+		return formatCompactMoney(value, currency)
+			.replace(/^Rp\s?/, '')
+			.replace(/^\$/, '')
+			.trim();
+	}
 
 	let totalPeriodIncome = $derived(items.reduce((sum, item) => sum + item.income, 0));
 	let totalPeriodExpense = $derived(items.reduce((sum, item) => sum + item.expense, 0));
 	let totalPeriodNet = $derived(totalPeriodIncome - totalPeriodExpense);
-
-	const RANGES: Array<{ value: CashflowRange; label: string }> = [
-		{ value: '7D', label: '7D' },
-		{ value: '1M', label: '1M' },
-		{ value: '6M', label: '6M' },
-		{ value: '1Y', label: '1Y' }
-	];
+	let hoveredItem = $derived(hoveredIndex !== null ? (items[hoveredIndex] ?? null) : null);
 </script>
 
-<div class="flex flex-col gap-3">
-	<div class="flex flex-wrap items-center justify-between gap-2">
-		<div class="text-muted-foreground flex items-center gap-3 text-xs font-medium">
-			<span class="inline-flex items-center gap-1.5">
-				<span class="size-2 rounded-full bg-emerald-500"></span>
-				Income
-			</span>
-			<span class="inline-flex items-center gap-1.5">
-				<span class="size-2 rounded-full bg-rose-500"></span>
-				Expenses
-			</span>
+<article class="bg-surface-card border-outline flex h-full flex-col justify-between gap-gutter-md rounded-md border p-gutter-md">
+	<header class="flex flex-wrap items-center justify-between gap-gutter-sm">
+		<div>
+			<h2 class="font-title text-title-lg text-on-surface">Cashflow Dynamics</h2>
+			<p class="font-body text-body-sm text-on-surface-variant">Income vs expenses over time</p>
 		</div>
 
-		<div class="bg-muted inline-flex items-center gap-0.5 rounded-lg p-0.5" role="group" aria-label="Cashflow time range">
+		<div
+			class="bg-surface-container-low border-outline inline-flex items-center rounded border p-0.5"
+			role="tablist"
+			aria-label="Cashflow range"
+		>
 			{#each RANGES as r (r.value)}
 				<button
 					type="button"
-					class={cn(
-						'cursor-pointer rounded-md px-2 py-0.5 text-[11px] font-semibold transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring/30',
-						selectedRange === r.value
-							? 'bg-card text-foreground shadow-2xs'
-							: 'text-muted-foreground hover:text-foreground'
-					)}
+					role="tab"
+					aria-selected={selectedRange === r.value}
 					onclick={() => (selectedRange = r.value)}
+					class={cn(
+						'font-label text-label-sm cursor-pointer rounded-sm px-2.5 py-1 transition-colors duration-state-change',
+						selectedRange === r.value
+							? 'bg-surface-card text-on-surface shadow-xs'
+							: 'text-on-surface-variant hover:text-on-surface'
+					)}
 				>
 					{r.label}
 				</button>
 			{/each}
 		</div>
+	</header>
 
-		{#if bestPeriod && (bestPeriod.income > 0 || bestPeriod.expense > 0)}
-			<span class="text-muted-foreground text-xs">
-				Best: <strong class="text-foreground">{bestPeriod.shortLabel || bestPeriod.label}</strong>
-				<span class={cn('font-semibold tabular-nums', bestPeriod.net < 0 ? 'text-rose-600' : 'text-emerald-700')}>
-					{formatMoney(bestPeriod.net, currency)}
+	<div class="relative w-full py-1">
+		<div class="mb-3 flex items-center justify-between gap-2">
+			<div class="font-body text-body-sm text-on-surface-variant min-h-[18px] tabular-nums">
+				{#if hoveredItem}
+					<span class="text-on-surface font-semibold">{hoveredItem.label}:</span>
+					<span class="text-on-income-container ml-1.5 font-medium">
+						+{formatMoney(hoveredItem.income, currency)}
+					</span>
+					<span class="mx-1 opacity-40">/</span>
+					<span class="text-on-expense-container font-medium">
+						-{formatMoney(hoveredItem.expense, currency)}
+					</span>
+				{/if}
+			</div>
+			<div class="flex items-center gap-gutter-md">
+				<span class="font-body text-body-sm text-on-surface-variant inline-flex items-center gap-1.5">
+					<span class="bg-income size-2.5 rounded-sm" aria-hidden="true"></span> Income
 				</span>
-			</span>
-		{/if}
-	</div>
+				<span class="font-body text-body-sm text-on-surface-variant inline-flex items-center gap-1.5">
+					<span class="bg-expense size-2.5 rounded-sm" aria-hidden="true"></span> Expenses
+				</span>
+			</div>
+		</div>
 
-	<div class="overflow-visible pt-2" role="img" aria-label={`Income and expenses for ${selectedRange}`}>
-		<div
-			class="grid items-end gap-1 sm:gap-1.5"
-			style={`grid-template-columns: repeat(${items.length}, minmax(0, 1fr));`}
+		<svg
+			viewBox="0 0 560 186"
+			class="h-44 w-full overflow-visible sm:h-48"
+			role="img"
+			aria-label={`Grouped bar chart for ${selectedRange}`}
 		>
+			<!-- Horizontal gridlines & Y ticks -->
+			{#each yTicks as tick, idx (idx)}
+				<line
+					x1={PLOT_LEFT}
+					y1={tick.y}
+					x2={PLOT_RIGHT}
+					y2={tick.y}
+					stroke={tick.value === 0 ? '#CBD5E1' : '#E2E8F0'}
+					stroke-dasharray={tick.value === 0 ? undefined : '3 3'}
+				/>
+				<text
+					x={PLOT_LEFT - 8}
+					y={tick.y + 4}
+					text-anchor="end"
+					fill="#475569"
+					font-size="11"
+					font-family="Instrument Sans, sans-serif"
+				>
+					{compactTick(tick.value)}
+				</text>
+			{/each}
+
+			<!-- Grouped bar pairs -->
 			{#each items as item, idx (item.key)}
-				<div
-					class={cn(
-						'group relative flex flex-col items-center gap-1.5 transition-opacity',
-						hovered !== null && hovered !== item.key && 'opacity-45'
-					)}
-					onmouseenter={() => (hovered = item.key)}
-					onmouseleave={() => (hovered = null)}
+				{@const slotW = PLOT_WIDTH / Math.max(1, items.length)}
+				{@const centerX = PLOT_LEFT + slotW * idx + slotW / 2}
+				{@const barW = Math.min(18, Math.max(6, slotW * 0.24))}
+				{@const gap = Math.min(4, Math.max(2, slotW * 0.05))}
+				{@const incH = barRectHeight(item.income)}
+				{@const expH = barRectHeight(item.expense)}
+				{@const isDimmed = hoveredIndex !== null && hoveredIndex !== idx}
+				{@const hasActivity = item.income > 0 || item.expense > 0}
+				<g
+					class="cursor-pointer transition-opacity duration-150"
+					opacity={isDimmed ? 0.35 : 1}
+					onmouseenter={() => (hoveredIndex = idx)}
+					onmouseleave={() => (hoveredIndex = null)}
 					role="presentation"
 				>
-					<!-- Edge-aware Hover Tooltip -->
-					{#if hovered === item.key}
-						<div
-							class={cn(
-								'bg-popover text-popover-foreground border-border pointer-events-none absolute bottom-full z-40 mb-1.5 flex min-w-[140px] flex-col gap-0.5 rounded-lg border p-2 text-[11px] whitespace-nowrap shadow-md',
-								idx <= 1 ? 'left-0' : idx >= items.length - 2 ? 'right-0' : 'left-1/2 -translate-x-1/2'
-							)}
-						>
-							<strong class="text-foreground font-semibold">{item.label}</strong>
-							<span class="flex items-center justify-between gap-3 text-emerald-700 tabular-nums">
-								<span>In</span>
-								<span>{formatMoney(item.income, currency)}</span>
-							</span>
-							<span class="flex items-center justify-between gap-3 text-rose-600 tabular-nums">
-								<span>Out</span>
-								<span>{formatMoney(item.expense, currency)}</span>
-							</span>
-							<span
-								class={cn(
-									'border-border mt-0.5 flex items-center justify-between gap-3 border-t pt-0.5 font-semibold tabular-nums',
-									item.net < 0 ? 'text-rose-600' : 'text-foreground'
-								)}
-							>
-								<span>Net</span>
-								<span>{formatMoney(item.net, currency)}</span>
-							</span>
-						</div>
-					{/if}
-
-					<!-- Bar Pair -->
-					<div class="border-border/60 flex h-24 w-full items-end justify-center gap-0.5 border-b pb-0.5 sm:h-28 sm:gap-1">
-						<span
-							class="w-2 rounded-t-sm bg-emerald-500 transition-all duration-300 sm:w-3"
-							style={`height:${barHeight(item.income)}`}
-							aria-label={`Income ${formatMoney(item.income, currency)}`}
-						></span>
-						<span
-							class="w-2 rounded-t-sm bg-rose-500 transition-all duration-300 sm:w-3"
-							style={`height:${barHeight(item.expense)}`}
-							aria-label={`Expenses ${formatMoney(item.expense, currency)}`}
-						></span>
-					</div>
-
-					<!-- Axis Label -->
-					<div class="flex flex-col items-center text-center leading-tight">
-						<span class="text-muted-foreground text-[10px] font-medium sm:text-[11px]">{item.shortLabel}</span>
-						<span class={cn('text-[9px] font-medium tabular-nums sm:text-[10px]', item.net < 0 ? 'text-rose-600' : 'text-muted-foreground')}>
-							{item.net === 0 ? '—' : formatCompactMoney(item.net, currency)}
-						</span>
-					</div>
-				</div>
+					<rect
+						x={PLOT_LEFT + slotW * idx}
+						y={PLOT_TOP}
+						width={slotW}
+						height={PLOT_HEIGHT + 28}
+						fill="transparent"
+					/>
+					<rect
+						x={centerX - barW - gap / 2}
+						y={PLOT_BOTTOM - incH}
+						width={barW}
+						height={incH}
+						rx={item.income > 0 ? 3 : 1}
+						fill="#10B981"
+						opacity={item.income > 0 ? 1 : 0.3}
+					/>
+					<rect
+						x={centerX + gap / 2}
+						y={PLOT_BOTTOM - expH}
+						width={barW}
+						height={expH}
+						rx={item.expense > 0 ? 3 : 1}
+						fill="#F43F5E"
+						opacity={item.expense > 0 ? 1 : 0.3}
+					/>
+					<text
+						x={centerX}
+						y={PLOT_BOTTOM + 20}
+						text-anchor="middle"
+						fill={hasActivity || hoveredIndex === idx ? '#0F172A' : '#475569'}
+						font-weight={hasActivity || hoveredIndex === idx ? '600' : '400'}
+						font-size={items.length > 8 ? '10' : '11'}
+						font-family="Instrument Sans, sans-serif"
+					>
+						{item.shortLabel}
+					</text>
+				</g>
 			{/each}
-		</div>
+		</svg>
 	</div>
 
-	<div class="border-border grid grid-cols-3 gap-2 border-t pt-2.5">
-		<div class="space-y-0.5">
-			<span class="text-muted-foreground block text-[11px]">Total in</span>
-			<span class="block text-xs font-semibold text-emerald-700 tabular-nums sm:text-sm">
-				+{formatMoney(totalPeriodIncome, currency)}
+	<footer class="border-outline flex flex-wrap items-center justify-between gap-gutter-md border-t pt-gutter-sm">
+		<div class="flex flex-wrap items-center gap-gutter-lg">
+			<span class="font-body text-body-sm text-on-surface-variant">
+				Total in:
+				<strong class="text-on-income-container font-semibold tabular-nums">
+					+{formatMoney(totalPeriodIncome, currency)}
+				</strong>
+			</span>
+			<span class="font-body text-body-sm text-on-surface-variant">
+				Total out:
+				<strong class="text-on-expense-container font-semibold tabular-nums">
+					-{formatMoney(totalPeriodExpense, currency)}
+				</strong>
 			</span>
 		</div>
-		<div class="space-y-0.5">
-			<span class="text-muted-foreground block text-[11px]">Total out</span>
-			<span class="text-foreground block text-xs font-semibold tabular-nums sm:text-sm">
-				−{formatMoney(totalPeriodExpense, currency)}
-			</span>
-		</div>
-		<div class="space-y-0.5">
-			<span class="text-muted-foreground block text-[11px]">Net surplus</span>
-			<span
+		<span class="font-body text-body-sm text-on-surface-variant">
+			Net:
+			<strong
 				class={cn(
-					'block text-xs font-semibold tabular-nums sm:text-sm',
-					totalPeriodNet >= 0 ? 'text-emerald-700' : 'text-rose-600'
+					'font-semibold tabular-nums',
+					totalPeriodNet < 0 ? 'text-on-expense-container' : 'text-on-surface'
 				)}
 			>
 				{totalPeriodNet >= 0 ? '+' : ''}{formatMoney(totalPeriodNet, currency)}
-			</span>
-		</div>
-	</div>
-</div>
+			</strong>
+		</span>
+	</footer>
+</article>

@@ -178,39 +178,102 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-	class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3 backdrop-blur-xs sm:p-4"
+	class="bg-on-surface/40 fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-gutter-md"
 	role="presentation"
 	onclick={(event) => {
 		if (event.target === event.currentTarget && !importing) onclose();
 	}}
 >
 	<div
-		class="bg-card text-card-foreground border-border flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border shadow-xl"
+		class="bg-surface-card text-on-surface border-outline flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border shadow-xl"
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="import-modal-title"
 	>
 		<!-- Header -->
-		<header class="border-border flex shrink-0 items-start justify-between gap-3 border-b px-5 py-4 sm:px-6">
-			<div class="space-y-1">
-				<div class="flex flex-wrap items-center gap-2">
-					<span class="text-muted-foreground text-[11px] font-bold tracking-wider uppercase">
-						e-Statement Importer
-					</span>
-					<Badge variant="success" class="px-2 py-0 text-[10px]">
-						Zero Storage · Direct to Google Sheet
-					</Badge>
-				</div>
-				<h2 id="import-modal-title" class="text-lg font-bold tracking-tight">
-					Import transactions from PDF or CSV statement
+		<header class="border-outline flex shrink-0 items-center justify-between gap-3 border-b px-gutter-lg py-gutter-md">
+			<div>
+				<h2 id="import-modal-title" class="font-title text-title-lg text-on-surface">
+					Import Bank e-Statement
 				</h2>
+				<p class="font-body text-body-sm text-on-surface-variant">
+					Auto-detects Krom, BCA, Mandiri, BNI, BRI, Jago &amp; SeaBank PDF/CSV mutasi
+				</p>
 			</div>
-			<Button variant="ghost" size="icon-sm" aria-label="Close" onclick={onclose} disabled={importing}>
-				✕
-			</Button>
+			<button
+				type="button"
+				aria-label="Close dialog"
+				onclick={onclose}
+				disabled={importing}
+				class="border-outline text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded border transition-colors"
+			>
+				<span class="material-symbols-outlined text-[18px]" aria-hidden="true">close</span>
+			</button>
 		</header>
 
-		<div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5 sm:p-6">
+		<div class="flex min-h-0 flex-1 flex-col gap-gutter-md overflow-y-auto p-gutter-lg">
+			<!-- Stitch 3-Step Stepper -->
+			<div class="grid grid-cols-3 gap-gutter-sm">
+				<div
+					class={cn(
+						'flex items-center gap-2 rounded border p-2.5',
+						rows.length === 0
+							? 'bg-primary-container/60 border-accent-orange/40'
+							: 'bg-income-container/50 border-income/30'
+					)}
+				>
+					<span
+						class={cn(
+							'font-label text-label-sm flex size-5 shrink-0 items-center justify-center rounded-full',
+							rows.length === 0 ? 'bg-primary text-on-primary' : 'bg-income text-white'
+						)}
+					>
+						1
+					</span>
+					<span class="font-label text-label-sm text-on-surface truncate">Upload PDF/CSV</span>
+				</div>
+				<div
+					class={cn(
+						'flex items-center gap-2 rounded border p-2.5',
+						rows.length > 0 && !importing
+							? 'bg-primary-container/60 border-accent-orange/40'
+							: 'bg-surface-container-high border-outline'
+					)}
+				>
+					<span
+						class={cn(
+							'font-label text-label-sm flex size-5 shrink-0 items-center justify-center rounded-full',
+							rows.length > 0 && !importing
+								? 'bg-primary text-on-primary'
+								: 'bg-surface-container-low text-on-surface-variant'
+						)}
+					>
+						2
+					</span>
+					<span class="font-label text-label-sm text-on-surface-variant truncate">Preview &amp; Match</span>
+				</div>
+				<div
+					class={cn(
+						'flex items-center gap-2 rounded border p-2.5',
+						importing
+							? 'bg-primary-container/60 border-accent-orange/40'
+							: 'bg-surface-container-high border-outline'
+					)}
+				>
+					<span
+						class={cn(
+							'font-label text-label-sm flex size-5 shrink-0 items-center justify-center rounded-full',
+							importing
+								? 'bg-primary text-on-primary'
+								: 'bg-surface-container-low text-on-surface-variant'
+						)}
+					>
+						3
+					</span>
+					<span class="font-label text-label-sm text-on-surface-variant truncate">Sync to Sheet</span>
+				</div>
+			</div>
+
 			<!-- Settings Bar -->
 			<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
 				<div class="space-y-1.5">
@@ -249,8 +312,8 @@
 			<!-- Dropzone -->
 			<div
 				class={cn(
-					'border-border bg-muted/25 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-6 text-center transition-colors',
-					isDragging && 'border-primary bg-primary/5'
+					'border-outline-variant bg-surface-container-high flex flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed px-4 py-7 text-center transition-colors',
+					isDragging && 'border-primary bg-primary-container/30'
 				)}
 				role="region"
 				aria-label="Upload e-Statement"
@@ -269,22 +332,22 @@
 					onchange={handleFileChange}
 				/>
 
-				<div class="bg-muted text-foreground flex size-10 items-center justify-center rounded-full text-lg">
-					📄
-				</div>
+				<span class="material-symbols-outlined text-accent-orange text-[32px]" aria-hidden="true">
+					upload_file
+				</span>
 
 				<div class="space-y-0.5">
-					<p class="text-sm font-semibold">
+					<p class="font-title text-title-md text-on-surface">
 						{#if parsing}
 							Parsing statement in browser…
 						{:else if fileName}
 							Loaded: <span class="text-primary">{fileName}</span>
 						{:else}
-							Drop your bank e-Statement here, or choose a file
+							Drop your e-Statement PDF or CSV here
 						{/if}
 					</p>
-					<p class="text-muted-foreground text-xs">
-						Supports PDF & CSV/TSV (BCA, Mandiri, BNI, BRI, Jago, SeaBank, etc.) · File stays in browser memory and is never saved.
+					<p class="font-body text-body-sm text-on-surface-variant">
+						Target wallet: {targetAccount} · File stays in browser memory and is never stored on any server.
 					</p>
 				</div>
 

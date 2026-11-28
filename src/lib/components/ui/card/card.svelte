@@ -15,7 +15,7 @@
 
 <div
 	data-slot="card"
-	class={cn('bg-card text-card-foreground border-border flex flex-col rounded-xl border shadow-2xs', className)}
+	class={cn('bg-surface-card text-on-surface border-outline flex flex-col rounded-md border', className)}
 	{...rest}
 >
 	{@render children?.()}
