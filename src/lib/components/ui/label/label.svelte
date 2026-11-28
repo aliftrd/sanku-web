@@ -16,7 +16,7 @@
 <label
 	data-slot="label"
 	class={cn(
-		'text-foreground flex items-center gap-1.5 text-xs leading-none font-semibold select-none',
+		'font-label text-label-sm text-on-surface-variant flex items-center gap-1.5 leading-none tracking-wider uppercase select-none',
 		className
 	)}
 	{...rest}

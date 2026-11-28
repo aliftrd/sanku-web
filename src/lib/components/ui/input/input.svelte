@@ -19,8 +19,8 @@
 	bind:value
 	data-slot="input"
 	class={cn(
-		'border-input bg-card text-foreground placeholder:text-muted-foreground flex h-9 w-full min-w-0 rounded-md border px-3 py-1 text-sm shadow-2xs transition-colors outline-none',
-		'focus-visible:border-ring focus-visible:ring-ring/25 focus-visible:ring-2',
+		'border-outline-variant bg-surface-container text-on-surface placeholder:text-on-surface-variant/70 flex h-10 w-full min-w-0 rounded border px-3.5 py-2 text-body-md transition-colors outline-none',
+		'focus-visible:border-primary focus-visible:ring-primary/30 focus-visible:ring-2',
 		'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
 		className
 	)}

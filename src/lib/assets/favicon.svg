@@ -1,6 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
 	<title>Sanku</title>
-	<rect width="64" height="64" rx="16" fill="#09090b" />
-	<path d="M18 43V28M29 43V19M40 43V34M51 43V23" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" />
-	<circle cx="51" cy="43" r="4" fill="#10b981" />
+	<rect width="64" height="64" rx="20" fill="#161719" />
+	<circle cx="32" cy="32" r="24" fill="#F2644C" stroke="#141517" stroke-width="2.5" />
+	<path
+		d="M38.5 23.5c-1.8-1.6-4-2.3-6.5-2.3-4.2 0-7 2-7 5.2 0 3.3 2.8 4.4 7.3 5.3 4.8.9 7.7 2.2 7.7 6.1 0 3.9-3.4 6.2-8.1 6.2-3.3 0-6.2-1-8.4-3"
+		fill="none"
+		stroke="#141517"
+		stroke-width="4.5"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+	/>
 </svg>

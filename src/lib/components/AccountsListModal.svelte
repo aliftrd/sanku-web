@@ -65,38 +65,43 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-	class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3 backdrop-blur-xs sm:p-4"
+	class="bg-ink/80 fixed inset-0 z-50 flex items-center justify-center p-3 backdrop-blur-[2px] sm:p-4"
 	role="presentation"
 	onclick={(event) => {
 		if (event.target === event.currentTarget) onclose();
 	}}
 >
 	<div
-		class="bg-card text-card-foreground border-border flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border shadow-xl"
+		class="bg-surface-card text-on-surface border-outline-variant flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border shadow-2xl"
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="accounts-list-title"
 	>
 		<!-- Header -->
-		<header class="border-border flex items-start justify-between gap-3 border-b px-5 py-4 sm:px-6">
-			<div class="space-y-0.5">
-				<span class="text-muted-foreground text-[11px] font-bold tracking-wider uppercase">
-					All Accounts & Wallets
+		<header class="border-outline-variant flex items-start justify-between gap-3 border-b px-5 py-4 sm:px-6">
+			<div class="space-y-1">
+				<span class="bg-sky-mint text-on-sky-mint font-label text-label-sm inline-block rounded-full px-2.5 py-0.5 uppercase">
+					All Accounts &amp; Wallets
 				</span>
-				<h2 id="accounts-list-title" class="text-lg font-bold tracking-tight">
+				<h2 id="accounts-list-title" class="font-headline text-headline-md text-on-surface uppercase tabular-nums">
 					{wallets.length} {wallets.length === 1 ? 'account' : 'accounts'} · {formatMoney(totalBalance, currency)}
 				</h2>
 			</div>
 			<div class="flex items-center gap-2">
-				<Button size="sm" onclick={onadd}>+ Add Account</Button>
-				<Button variant="ghost" size="icon-sm" aria-label="Close" onclick={onclose}>
-					✕
-				</Button>
+				<Button size="sm" variant="marigold" onclick={onadd}>+ Add Account</Button>
+				<button
+					type="button"
+					aria-label="Close"
+					onclick={onclose}
+					class="bg-pill-white text-on-pill-white inline-flex size-8 cursor-pointer items-center justify-center rounded-full"
+				>
+					<span class="material-symbols-outlined text-[18px]" aria-hidden="true">close</span>
+				</button>
 			</div>
 		</header>
 
 		<!-- Filters -->
-		<div class="border-border bg-muted/25 flex flex-col gap-2.5 border-b px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+		<div class="border-outline-variant bg-surface-container-low flex flex-col gap-2.5 border-b px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
 			<div class="relative flex-1 sm:max-w-xs">
 				<Input
 					bind:value={search}
@@ -118,10 +123,10 @@
 					<button
 						type="button"
 						class={cn(
-							'cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+							'font-label text-label-sm cursor-pointer rounded-full px-3 py-1 transition-colors',
 							filterKind === tab.id
-								? 'bg-primary text-primary-foreground'
-								: 'bg-muted text-muted-foreground hover:text-foreground'
+								? 'bg-pill-white text-on-pill-white'
+								: 'bg-surface-container text-on-surface-variant hover:text-on-surface'
 						)}
 						onclick={() => (filterKind = tab.id as typeof filterKind)}
 					>
@@ -134,71 +139,67 @@
 		<!-- Accounts List -->
 		<div class="flex-1 overflow-y-auto p-5 sm:p-6">
 			{#if filteredWallets.length === 0}
-				<div class="border-border flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed py-10 text-center">
-					<p class="text-sm font-semibold">No matching accounts</p>
-					<p class="text-muted-foreground text-xs">
+				<div class="border-outline-variant flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed py-10 text-center">
+					<p class="font-title text-title-md text-on-surface">No matching accounts</p>
+					<p class="font-body text-body-sm text-on-surface-variant">
 						{wallets.length === 0 ? 'Create your first account to track balances.' : 'Try adjusting your search or filter.'}
 					</p>
 					{#if wallets.length === 0}
-						<Button size="sm" class="mt-1" onclick={onadd}>+ Create Account</Button>
+						<Button size="sm" variant="marigold" class="mt-1" onclick={onadd}>+ Create Account</Button>
 					{/if}
 				</div>
 			{:else}
 				<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 					{#each filteredWallets as wallet (wallet.id)}
-						<div
-							class="border-border bg-card flex flex-col justify-between gap-3 rounded-xl border border-l-4 p-4 transition-colors"
-							style={`border-left-color: ${wallet.color || 'var(--border)'}`}
-						>
+						<div class="border-outline-variant bg-surface-container flex flex-col justify-between gap-3 rounded-lg border p-4">
 							<div class="flex items-start justify-between gap-2">
 								<div class="flex min-w-0 items-center gap-2.5">
 									<span
-										class="flex size-9 shrink-0 items-center justify-center rounded-lg text-base"
-										style={`background: ${wallet.color}20`}
+										class="flex size-9 shrink-0 items-center justify-center rounded-full text-base"
+										style={`background: ${wallet.color || '#F2644C'}30`}
 									>
 										{wallet.icon || '🏦'}
 									</span>
 									<div class="min-w-0">
-										<strong class="block truncate text-sm font-semibold">{wallet.name}</strong>
+										<strong class="font-title text-title-md text-on-surface block truncate">{wallet.name}</strong>
 										<div class="mt-0.5 flex items-center gap-1.5">
-											<Badge variant="secondary" class="px-1.5 py-0 text-[10px]">
+											<Badge variant="sky-mint" class="px-2 py-0 text-[10px]">
 												{KIND_LABELS[wallet.kind] ?? wallet.kind}
 											</Badge>
-											<span class="text-muted-foreground text-[11px]">
+											<span class="font-body text-on-surface-variant text-[11px]">
 												{wallet.count} {wallet.count === 1 ? 'tx' : 'txs'}
 											</span>
 										</div>
 									</div>
 								</div>
 
-								<Button
-									variant="outline"
-									size="icon-sm"
-									class="size-7 text-xs"
+								<button
+									type="button"
 									title="Edit account"
 									aria-label={`Edit ${wallet.name}`}
 									onclick={() => onedit(wallet)}
+									class="bg-surface-card text-on-surface-variant hover:bg-pill-white hover:text-on-pill-white flex size-7 cursor-pointer items-center justify-center rounded-full transition-colors"
 								>
-									✎
-								</Button>
+									<span class="material-symbols-outlined text-[15px]" aria-hidden="true">edit</span>
+								</button>
 							</div>
 
 							<div class="flex items-end justify-between gap-2 pt-1">
 								<div>
-									<div class="text-base font-bold tracking-tight tabular-nums">
+									<div class="font-headline text-headline-md text-on-surface tabular-nums">
 										{formatMoney(wallet.balance, currency)}
 									</div>
 									{#if (wallet.initialBalance ?? 0) !== 0}
-										<span class="text-muted-foreground text-[11px] tabular-nums">
+										<span class="font-mono text-on-surface-variant text-[11px] tabular-nums">
 											Initial: {formatMoney(wallet.initialBalance ?? 0, currency)}
 										</span>
 									{/if}
 								</div>
 
 								<Button
-									variant="ghost"
+									variant="pill-white"
 									size="sm"
-									class="h-7 px-2 text-xs"
+									class="h-7 px-3 text-xs"
 									onclick={() => onfilter(wallet.name)}
 								>
 									Filter Ledger →
@@ -210,8 +211,8 @@
 			{/if}
 		</div>
 
-		<footer class="border-border flex items-center justify-between border-t px-5 py-3 sm:px-6">
-			<span class="text-muted-foreground text-xs">
+		<footer class="border-outline-variant bg-surface-container-low flex items-center justify-between border-t px-5 py-3 sm:px-6">
+			<span class="font-body text-body-sm text-on-surface-variant">
 				Showing {filteredWallets.length} of {wallets.length} accounts
 			</span>
 			<Button variant="outline" size="sm" onclick={onclose}>Done</Button>

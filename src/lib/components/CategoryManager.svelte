@@ -22,18 +22,16 @@
 	} = $props();
 
 	const PALETTE = [
-		'#2f6f4e',
-		'#4f8f6a',
-		'#4a7c9b',
-		'#5c6fa8',
-		'#8d6bab',
-		'#b45f7a',
-		'#d97757',
-		'#c0603f',
-		'#c2a24a',
-		'#8a6a4f',
-		'#3f8f8a',
-		'#9a9489'
+		'#F2644C',
+		'#F5BA41',
+		'#5C6BF2',
+		'#A6DCEF',
+		'#34D399',
+		'#E6ECE8',
+		'#F4F5F3',
+		'#FB7185',
+		'#38BDF8',
+		'#FBBF24'
 	];
 
 	let expenseCategories = $derived(
@@ -126,141 +124,141 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-	class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3 backdrop-blur-xs sm:p-4"
+	class="bg-ink/80 fixed inset-0 z-50 flex items-center justify-center p-3 backdrop-blur-[2px] sm:p-4"
 	role="presentation"
 	onclick={(event) => {
 		if (event.target === event.currentTarget && !saving) onclose();
 	}}
 >
 	<div
-		class="bg-card text-card-foreground border-border flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border shadow-xl"
+		class="bg-surface-card text-on-surface border-outline-variant flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border shadow-2xl"
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="category-modal-title"
 	>
-		<header class="border-border flex shrink-0 items-start justify-between border-b px-4 py-3.5 sm:px-6 sm:py-4">
-			<div class="space-y-0.5">
-				<span class="text-muted-foreground text-[11px] font-bold tracking-wider uppercase">
-					Categories & Budgets
+		<header class="border-outline-variant flex shrink-0 items-start justify-between border-b px-4 py-3.5 sm:px-6 sm:py-4">
+			<div class="space-y-1">
+				<span class="bg-sky-mint text-on-sky-mint font-label text-label-sm inline-block rounded-full px-2.5 py-0.5 uppercase">
+					Categories &amp; Budgets
 				</span>
-				<h2 id="category-modal-title" class="text-base font-bold tracking-tight sm:text-xl">
+				<h2 id="category-modal-title" class="font-headline text-headline-md text-on-surface uppercase">
 					Shape how your money is organised
 				</h2>
 			</div>
-			<Button variant="ghost" size="icon-sm" aria-label="Close" onclick={onclose}>
-				✕
-			</Button>
+			<button
+				type="button"
+				aria-label="Close"
+				onclick={onclose}
+				class="bg-pill-white text-on-pill-white inline-flex size-8 cursor-pointer items-center justify-center rounded-full transition-opacity hover:opacity-90"
+			>
+				<span class="material-symbols-outlined text-[18px]" aria-hidden="true">close</span>
+			</button>
 		</header>
 
 		<div class="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 sm:gap-6 sm:p-6 md:grid-cols-[1.15fr_0.85fr]">
 			<!-- Left Column: Category List -->
 			<div class="flex flex-col gap-3">
-				<div class="bg-muted grid grid-cols-2 gap-1 rounded-lg p-1" role="tablist" aria-label="Category type filter">
+				<div class="bg-ink grid grid-cols-2 gap-1 rounded-full p-1" role="tablist" aria-label="Category type filter">
 					<button
 						type="button"
 						class={cn(
-							'flex h-8 cursor-pointer items-center justify-center gap-2 rounded-md text-xs font-semibold transition-all',
+							'flex h-8 cursor-pointer items-center justify-center gap-2 rounded-full font-label text-label-sm transition-colors',
 							activeTab === 'expense'
-								? 'bg-card text-foreground shadow-2xs'
-								: 'text-muted-foreground hover:text-foreground'
+								? 'bg-pill-white text-on-pill-white'
+								: 'text-on-surface-variant hover:text-on-surface'
 						)}
 						role="tab"
 						aria-selected={activeTab === 'expense'}
 						onclick={() => (activeTab = 'expense')}
 					>
 						<span>Expenses</span>
-						<span class="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
+						<span class="bg-coral text-on-coral rounded-full px-1.5 py-0 text-[10px] font-bold">
 							{expenseCategories.length}
 						</span>
 					</button>
 					<button
 						type="button"
 						class={cn(
-							'flex h-8 cursor-pointer items-center justify-center gap-2 rounded-md text-xs font-semibold transition-all',
+							'flex h-8 cursor-pointer items-center justify-center gap-2 rounded-full font-label text-label-sm transition-colors',
 							activeTab === 'income'
-								? 'bg-card text-foreground shadow-2xs'
-								: 'text-muted-foreground hover:text-foreground'
+								? 'bg-pill-white text-on-pill-white'
+								: 'text-on-surface-variant hover:text-on-surface'
 						)}
 						role="tab"
 						aria-selected={activeTab === 'income'}
 						onclick={() => (activeTab = 'income')}
 					>
 						<span>Income Sources</span>
-						<span class="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
+						<span class="bg-income text-on-income rounded-full px-1.5 py-0 text-[10px] font-bold">
 							{incomeCategories.length}
 						</span>
 					</button>
 				</div>
 
-				<div class="border-border bg-muted/20 max-h-[230px] space-y-1.5 overflow-y-auto rounded-xl border p-2 md:max-h-[380px]">
+				<div class="border-outline-variant bg-surface-container-low max-h-[240px] space-y-2 overflow-y-auto rounded-lg border p-2.5 md:max-h-[380px]">
 					{#each activeList as category (category.id)}
 						<div
 							class={cn(
-								'border-border bg-card hover:bg-accent/40 flex items-center justify-between gap-2.5 rounded-lg border px-3 py-2 transition-colors',
-								editingId === category.id && 'border-primary bg-primary/5 ring-1 ring-primary/20'
+								'flex items-center justify-between gap-2.5 rounded-lg border px-3 py-2.5 transition-colors',
+								editingId === category.id
+									? 'border-marigold bg-marigold/15'
+									: 'border-outline-variant bg-surface-container hover:bg-surface-container/80'
 							)}
 						>
 							<div class="flex min-w-0 items-center gap-2.5">
 								<span
-									class="flex size-8 shrink-0 items-center justify-center rounded-md text-base"
-									style={`background: ${category.color}20`}
+									class="flex size-8 shrink-0 items-center justify-center rounded-full text-base"
+									style={`background: ${category.color}30`}
 								>
 									{category.emoji}
 								</span>
 								<div class="flex min-w-0 flex-col">
-									<strong class="truncate text-xs font-semibold sm:text-sm">{category.name}</strong>
+									<strong class="font-title text-title-md text-on-surface truncate">{category.name}</strong>
 									{#if category.type === 'expense'}
 										{#if category.budget > 0}
-											<span class="text-[11px] font-medium text-emerald-700">
+											<span class="font-mono text-[11px] font-semibold text-income tabular-nums">
 												Limit: {formatMoney(category.budget, currency)}/mo
 											</span>
 										{:else}
-											<span class="text-muted-foreground text-[11px]">No budget limit</span>
+											<span class="font-body text-on-surface-variant text-[11px]">No budget limit</span>
 										{/if}
 									{:else}
-										<span class="text-muted-foreground text-[11px]">Income Category</span>
+										<span class="font-body text-on-surface-variant text-[11px]">Income Category</span>
 									{/if}
 								</div>
 							</div>
 
 							<div class="flex shrink-0 items-center gap-1">
-								<Button
-									variant="outline"
-									size="icon-sm"
-									class="size-7"
+								<button
+									type="button"
 									title="Edit category"
 									aria-label={`Edit ${category.name}`}
 									onclick={() => startEdit(category)}
+									class="bg-surface-card text-on-surface-variant hover:bg-pill-white hover:text-on-pill-white flex size-7 cursor-pointer items-center justify-center rounded-full transition-colors"
 								>
-									<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-										<path d="M11.5 2.5a1.77 1.77 0 0 1 2.5 2.5L5 14H2v-3l9.5-8.5z" />
-									</svg>
-								</Button>
-								<Button
-									variant="outline"
-									size="icon-sm"
-									class="text-destructive size-7 hover:bg-rose-50 hover:text-rose-700"
+									<span class="material-symbols-outlined text-[15px]" aria-hidden="true">edit</span>
+								</button>
+								<button
+									type="button"
 									title="Delete category"
 									aria-label={`Delete ${category.name}`}
 									onclick={() => (deletingCategory = category)}
+									class="bg-surface-card text-on-surface-variant hover:bg-coral hover:text-on-coral flex size-7 cursor-pointer items-center justify-center rounded-full transition-colors"
 								>
-									<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-										<path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M13 4.5v9a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3 13.5v-9" />
-										<path d="M6.5 7.5v4M9.5 7.5v4" />
-									</svg>
-								</Button>
+									<span class="material-symbols-outlined text-[15px]" aria-hidden="true">delete</span>
+								</button>
 							</div>
 						</div>
 					{/each}
 
 					{#if activeList.length === 0}
-						<div class="text-muted-foreground py-8 text-center text-xs">
+						<div class="text-on-surface-variant py-8 text-center text-xs">
 							{activeTab === 'expense' ? 'No expense categories yet' : 'No income sources yet'}
 						</div>
 					{/if}
 				</div>
 
-				<p class="text-muted-foreground text-[11px] leading-relaxed">
+				<p class="font-body text-on-surface-variant text-[11px] leading-relaxed">
 					Deleting a category does not delete past transactions — they simply display as uncategorized.
 				</p>
 			</div>
@@ -272,7 +270,7 @@
 					bind:this={formEl}
 					method="POST"
 					action="?/saveCategory"
-					class="border-border bg-muted/40 flex flex-col gap-3 rounded-xl border p-4"
+					class="border-outline-variant bg-surface-container flex flex-col gap-3.5 rounded-lg border p-4"
 					use:enhance={() => {
 						saving = true;
 						error = null;
@@ -299,7 +297,9 @@
 					{/if}
 
 					<div class="flex items-center justify-between">
-						<h3 class="text-sm font-bold">{editingCategory ? 'Edit category' : 'New category'}</h3>
+						<h3 class="font-headline text-headline-md text-on-surface uppercase">
+							{editingCategory ? 'Edit category' : 'New category'}
+						</h3>
 						{#if editingCategory}
 							<Button variant="link" size="sm" class="h-auto p-0 text-xs" onclick={resetForm}>
 								Cancel edit
@@ -307,14 +307,14 @@
 						{/if}
 					</div>
 
-					<div class="bg-card border-border grid grid-cols-2 gap-1 rounded-lg border p-1" role="group" aria-label="Category type">
+					<div class="bg-ink grid grid-cols-2 gap-1 rounded-full p-1" role="group" aria-label="Category type">
 						<button
 							type="button"
 							class={cn(
-								'h-8 cursor-pointer rounded-md text-xs font-semibold transition-all',
+								'h-8 cursor-pointer rounded-full font-label text-label-sm transition-colors',
 								type === 'expense'
-									? 'bg-primary text-primary-foreground shadow-2xs'
-									: 'text-muted-foreground hover:text-foreground'
+									? 'bg-coral text-on-coral'
+									: 'text-on-surface-variant hover:text-on-surface'
 							)}
 							onclick={() => {
 								type = 'expense';
@@ -326,10 +326,10 @@
 						<button
 							type="button"
 							class={cn(
-								'h-8 cursor-pointer rounded-md text-xs font-semibold transition-all',
+								'h-8 cursor-pointer rounded-full font-label text-label-sm transition-colors',
 								type === 'income'
-									? 'bg-primary text-primary-foreground shadow-2xs'
-									: 'text-muted-foreground hover:text-foreground'
+									? 'bg-income text-on-income'
+									: 'text-on-surface-variant hover:text-on-surface'
 							)}
 							onclick={() => {
 								type = 'income';
@@ -342,7 +342,7 @@
 					<input type="hidden" name="type" value={type} />
 
 					<div class="flex flex-col gap-3">
-						<div class="grid grid-cols-[60px_1fr] gap-2.5">
+						<div class="grid grid-cols-[68px_1fr] gap-2.5">
 							<div class="space-y-1.5">
 								<Label for="cat-emoji">Emoji</Label>
 								<Input
@@ -350,7 +350,7 @@
 									name="emoji"
 									bind:value={emoji}
 									maxlength={8}
-									class="text-center text-lg"
+									class="bg-surface text-center text-lg"
 									aria-label="Category emoji"
 								/>
 							</div>
@@ -362,7 +362,8 @@
 									name="name"
 									bind:value={name}
 									maxlength={40}
-									placeholder="e.g. Coffee, Groceries..."
+									placeholder="e.g. Jajan, Kost..."
+									class="bg-surface"
 									required
 								/>
 							</div>
@@ -376,7 +377,7 @@
 										type="button"
 										class={cn(
 											'size-6 cursor-pointer rounded-full border-2 border-transparent transition-transform hover:scale-110',
-											color === swatch && 'border-foreground scale-115 ring-2 ring-offset-1 ring-foreground/20'
+											color === swatch && 'border-pill-white scale-115 ring-2 ring-pill-white/30'
 										)}
 										style={`background: ${swatch}`}
 										aria-label={`Use colour ${swatch}`}
@@ -390,17 +391,17 @@
 						{#if type === 'expense'}
 							<div class="space-y-1.5">
 								<Label for="cat-budget">
-									Monthly Budget Limit <span class="text-muted-foreground font-normal">(optional)</span>
+									Monthly Limit <span class="text-on-surface-variant font-normal lowercase">(optional)</span>
 								</Label>
-								<div class="border-input bg-card focus-within:ring-ring/25 flex h-9 items-center gap-2 rounded-md border px-3 shadow-2xs focus-within:ring-2">
-									<span class="text-muted-foreground text-xs font-bold">{currency}</span>
+								<div class="border-outline-variant bg-surface focus-within:border-primary flex h-10 items-center gap-2 rounded border px-3">
+									<span class="font-mono text-mono-sm text-on-surface-variant font-bold">{currency}</span>
 									<input type="hidden" name="budget" value={rawBudget} />
 									<input
 										id="cat-budget"
 										type="text"
 										inputmode="numeric"
 										placeholder="0"
-										class="w-full bg-transparent text-sm font-semibold tabular-nums outline-none"
+										class="text-on-surface w-full bg-transparent font-mono text-sm font-semibold tabular-nums outline-none"
 										value={displayBudget}
 										oninput={handleBudgetInput}
 									/>
@@ -412,7 +413,7 @@
 					</div>
 
 					{#if error}
-						<div class="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700" role="alert">
+						<div class="bg-coral text-on-coral flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold" role="alert">
 							<span class="font-bold">!</span>
 							<p>{error}</p>
 						</div>
@@ -421,14 +422,14 @@
 			</div>
 		</div>
 
-		<footer class="border-border bg-card flex shrink-0 flex-wrap items-center justify-between gap-3 border-t px-4 py-3.5 sm:px-6">
+		<footer class="border-outline-variant bg-surface-container-low flex shrink-0 flex-wrap items-center justify-between gap-3 border-t px-4 py-3.5 sm:px-6">
 			<div class="text-xs">
 				{#if savedFlash}
-					<span class="font-semibold text-emerald-700" role="status">
+					<span class="text-income font-semibold" role="status">
 						✓ Saved to Google Sheet
 					</span>
 				{:else}
-					<span class="text-muted-foreground">
+					<span class="text-on-surface-variant">
 						{editingCategory ? `Editing "${editingCategory.name}"` : 'Saved to your Google Sheet Categories tab'}
 					</span>
 				{/if}
@@ -443,7 +444,7 @@
 				<Button variant="outline" onclick={onclose} disabled={saving}>
 					Close
 				</Button>
-				<Button type="submit" form="category-manager-form" disabled={saving}>
+				<Button type="submit" form="category-manager-form" variant="pill-white" disabled={saving}>
 					{saving ? 'Saving…' : editingCategory ? 'Save changes' : 'Add category'}
 				</Button>
 			</div>

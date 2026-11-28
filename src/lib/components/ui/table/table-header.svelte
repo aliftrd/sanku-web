@@ -13,6 +13,6 @@
 	} = $props();
 </script>
 
-<thead data-slot="table-header" class={cn('[&_tr]:border-b', className)} {...rest}>
+<thead data-slot="table-header" class={cn('bg-surface-container-low [&_tr]:border-b [&_tr]:border-outline-variant', className)} {...rest}>
 	{@render children?.()}
 </thead>

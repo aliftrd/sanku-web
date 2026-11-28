@@ -31,12 +31,15 @@ import {
 	buildBudgetProgress,
 	buildCategorySpending,
 	buildMonthTotals,
+	convertCurrencyAmount,
 	currentMonthKey,
 	formatMoney,
+	isSupportedCurrency,
 	isValidDateString,
 	isValidMonthKey,
 	monthKeyFromDate,
 	monthLabel,
+	parseFlexibleAmount,
 	parseNumberWithDots,
 	sumByType,
 	todayISO
@@ -83,6 +86,9 @@ function readTransactionInput(data: FormData): { input?: TransactionInput; error
 	const account = String(data.get('account') ?? '').trim();
 	const toAccount = String(data.get('toAccount') ?? '').trim();
 	let notes = String(data.get('notes') ?? '').trim();
+	const baseCurrency = String(data.get('baseCurrency') ?? '').trim().toUpperCase();
+	const txCurrency = String(data.get('txCurrency') ?? '').trim().toUpperCase();
+	const rawExchangeRate = String(data.get('exchangeRate') ?? '').trim();
 
 	if (!isValidDateString(date)) {
 		return { error: 'Choose a valid date.' };
@@ -105,14 +111,44 @@ function readTransactionInput(data: FormData): { input?: TransactionInput; error
 		}
 	}
 
-	const amount = parseNumberWithDots(rawAmount);
+	const inputCurrency = isSupportedCurrency(txCurrency)
+		? txCurrency
+		: isSupportedCurrency(baseCurrency)
+			? baseCurrency
+			: undefined;
+	const enteredAmount = parseFlexibleAmount(rawAmount, inputCurrency);
 
-	if (!Number.isFinite(amount) || amount <= 0) {
+	if (!Number.isFinite(enteredAmount) || enteredAmount <= 0) {
 		return { error: 'Enter an amount greater than zero.' };
 	}
-	if (amount > MAX_AMOUNT) {
+	if (enteredAmount > MAX_AMOUNT) {
 		return { error: 'That amount is too large.' };
 	}
+
+	let amount = enteredAmount;
+	let savedCurrency: string | undefined;
+	let originalAmount: number | undefined;
+	let exchangeRate: number | undefined;
+
+	if (
+		isSupportedCurrency(txCurrency) &&
+		isSupportedCurrency(baseCurrency) &&
+		txCurrency !== baseCurrency
+	) {
+		const parsedRate = Number(rawExchangeRate.replace(',', '.'));
+		if (!Number.isFinite(parsedRate) || parsedRate <= 0 || parsedRate > 1_000_000) {
+			return { error: `Enter a valid exchange rate from ${txCurrency} to ${baseCurrency}.` };
+		}
+		const converted = convertCurrencyAmount(enteredAmount, parsedRate, baseCurrency);
+		if (!Number.isFinite(converted) || converted <= 0 || converted > MAX_AMOUNT) {
+			return { error: 'Converted amount is out of range.' };
+		}
+		amount = converted;
+		savedCurrency = txCurrency;
+		originalAmount = enteredAmount;
+		exchangeRate = parsedRate;
+	}
+
 	if (description.length > MAX_DESCRIPTION_LENGTH) {
 		return { error: `Descriptions can be at most ${MAX_DESCRIPTION_LENGTH} characters.` };
 	}
@@ -130,6 +166,9 @@ function readTransactionInput(data: FormData): { input?: TransactionInput; error
 			categoryId,
 			description: description || 'Untitled',
 			amount,
+			currency: savedCurrency,
+			originalAmount,
+			exchangeRate,
 			account,
 			notes
 		}
@@ -490,7 +529,7 @@ export const actions: Actions = {
 		const data = await request.formData();
 		const theme = String(data.get('theme') ?? '').trim();
 
-		if (theme !== 'orange' && theme !== 'sky' && theme !== 'forest') {
+		if (theme !== 'coral' && theme !== 'marigold' && theme !== 'periwinkle' && theme !== 'sky-mint') {
 			return fail(400, { error: 'That theme is not supported.', action: 'setTheme' });
 		}
 
@@ -583,10 +622,20 @@ export const actions: Actions = {
 			const amount = Number(row.amount);
 			const account = String(row.account ?? defaultAccount).trim().slice(0, MAX_ACCOUNT_LENGTH);
 			const notes = String(row.notes ?? '').trim().slice(0, MAX_NOTES_LENGTH);
+			const rowCurrency = String(row.currency ?? '').trim().toUpperCase();
+			const rowOriginal = Number(row.originalAmount);
+			const rowRate = Number(row.exchangeRate);
 
 			if (!isValidDateString(date)) continue;
 			if (type !== 'income' && type !== 'expense' && type !== 'transfer') continue;
 			if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) continue;
+
+			const hasFx =
+				isSupportedCurrency(rowCurrency) &&
+				Number.isFinite(rowOriginal) &&
+				rowOriginal > 0 &&
+				Number.isFinite(rowRate) &&
+				rowRate > 0;
 
 			validInputs.push({
 				date,
@@ -594,6 +643,9 @@ export const actions: Actions = {
 				categoryId: type === 'transfer' ? '' : categoryId,
 				description: description || 'Imported transaction',
 				amount,
+				currency: hasFx ? rowCurrency : undefined,
+				originalAmount: hasFx ? rowOriginal : undefined,
+				exchangeRate: hasFx ? rowRate : undefined,
 				account,
 				notes
 			});

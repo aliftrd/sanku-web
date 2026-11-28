@@ -14,7 +14,7 @@
 </script>
 
 <div data-slot="table-container" class="relative w-full overflow-x-auto">
-	<table data-slot="table" class={cn('w-full caption-bottom text-sm', className)} {...rest}>
+	<table data-slot="table" class={cn('w-full caption-bottom text-body-md', className)} {...rest}>
 		{@render children?.()}
 	</table>
 </div>

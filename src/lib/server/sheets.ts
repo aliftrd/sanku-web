@@ -32,7 +32,10 @@ const TX_HEADER = [
 	'account',
 	'notes',
 	'created_at',
-	'updated_at'
+	'updated_at',
+	'currency',
+	'original_amount',
+	'exchange_rate'
 ] as const;
 
 const CAT_HEADER = ['id', 'name', 'type', 'color', 'emoji', 'budget', 'created_at'] as const;
@@ -621,19 +624,42 @@ async function readRows(
 }
 
 function toTransaction(values: string[]): Transaction | null {
-	const [id, date, type, categoryId = '', description = '', rawAmount = '', account = '', notes = '', createdAt = '', updatedAt = ''] = values;
+	const [
+		id,
+		date,
+		type,
+		categoryId = '',
+		description = '',
+		rawAmount = '',
+		account = '',
+		notes = '',
+		createdAt = '',
+		updatedAt = '',
+		rawCurrency = '',
+		rawOriginalAmount = '',
+		rawExchangeRate = ''
+	] = values;
 	if (!id || !date) return null;
 
 	const amount = Number(rawAmount);
 	if (!Number.isFinite(amount)) return null;
 
+	const txType = type === 'income' || type === 'transfer' ? type : 'expense';
+	const currency = rawCurrency.trim().toUpperCase();
+	const parsedOriginal = Number(rawOriginalAmount);
+	const parsedRate = Number(rawExchangeRate);
+
 	return {
 		id,
 		date,
-		type: type === 'income' ? 'income' : 'expense',
+		type: txType,
 		categoryId,
 		description: description || 'Untitled',
 		amount,
+		currency: currency && isSupportedCurrency(currency) ? currency : undefined,
+		originalAmount:
+			Number.isFinite(parsedOriginal) && parsedOriginal > 0 ? parsedOriginal : undefined,
+		exchangeRate: Number.isFinite(parsedRate) && parsedRate > 0 ? parsedRate : undefined,
 		account,
 		notes,
 		createdAt: createdAt || updatedAt,
@@ -645,7 +671,7 @@ export async function listTransactions(
 	accessToken: string,
 	spreadsheetId: string
 ): Promise<Transaction[]> {
-	const rows = await readRows(accessToken, spreadsheetId, `${TX_SHEET}!A2:J`);
+	const rows = await readRows(accessToken, spreadsheetId, `${TX_SHEET}!A2:M`);
 
 	return rows
 		.map(({ values }) => toTransaction(values))
@@ -658,15 +684,47 @@ export async function listTransactions(
 }
 
 function normalizeTransaction(input: TransactionInput): TransactionInput {
+	const cleanCurrency = input.currency?.trim().toUpperCase();
+	const hasValidCurrency = Boolean(cleanCurrency && isSupportedCurrency(cleanCurrency));
+	const originalAmount =
+		hasValidCurrency && input.originalAmount && Number.isFinite(input.originalAmount)
+			? Math.min(Math.abs(Number(input.originalAmount)), MAX_AMOUNT)
+			: undefined;
+	const exchangeRate =
+		hasValidCurrency && input.exchangeRate && Number.isFinite(input.exchangeRate) && input.exchangeRate > 0
+			? Number(input.exchangeRate)
+			: undefined;
+
 	return {
 		date: input.date,
-		type: input.type === 'income' ? 'income' : 'expense',
+		type: input.type === 'income' || input.type === 'transfer' ? input.type : 'expense',
 		categoryId: input.categoryId.trim(),
 		description: input.description.trim().slice(0, MAX_DESCRIPTION_LENGTH),
 		amount: Math.min(Math.abs(Number(input.amount)) || 0, MAX_AMOUNT),
+		currency: hasValidCurrency ? cleanCurrency : undefined,
+		originalAmount,
+		exchangeRate,
 		account: input.account.trim().slice(0, MAX_ACCOUNT_LENGTH),
 		notes: input.notes.trim().slice(0, MAX_NOTES_LENGTH)
 	};
+}
+
+function transactionToRow(transaction: Transaction): string[] {
+	return [
+		transaction.id,
+		transaction.date,
+		transaction.type,
+		transaction.categoryId,
+		transaction.description,
+		String(transaction.amount),
+		transaction.account,
+		transaction.notes,
+		transaction.createdAt,
+		transaction.updatedAt,
+		transaction.currency ?? '',
+		transaction.originalAmount ? String(transaction.originalAmount) : '',
+		transaction.exchangeRate ? String(transaction.exchangeRate) : ''
+	];
 }
 
 export async function createTransaction(
@@ -684,19 +742,8 @@ export async function createTransaction(
 		updatedAt: now
 	};
 
-	await appendRows(accessToken, spreadsheetId, `${TX_SHEET}!A:J`, [
-		[
-			transaction.id,
-			transaction.date,
-			transaction.type,
-			transaction.categoryId,
-			transaction.description,
-			String(transaction.amount),
-			transaction.account,
-			transaction.notes,
-			transaction.createdAt,
-			transaction.updatedAt
-		]
+	await appendRows(accessToken, spreadsheetId, `${TX_SHEET}!A:M`, [
+		transactionToRow(transaction)
 	]);
 
 	return transaction;
@@ -724,19 +771,8 @@ export async function createTransactionsBatch(
 	await appendRows(
 		accessToken,
 		spreadsheetId,
-		`${TX_SHEET}!A:J`,
-		transactions.map((transaction) => [
-			transaction.id,
-			transaction.date,
-			transaction.type,
-			transaction.categoryId,
-			transaction.description,
-			String(transaction.amount),
-			transaction.account,
-			transaction.notes,
-			transaction.createdAt,
-			transaction.updatedAt
-		])
+		`${TX_SHEET}!A:M`,
+		transactions.map(transactionToRow)
 	);
 
 	return transactions;
@@ -748,7 +784,7 @@ export async function updateTransaction(
 	id: string,
 	input: TransactionInput
 ): Promise<Transaction> {
-	const rows = await readRows(accessToken, spreadsheetId, `${TX_SHEET}!A2:J`);
+	const rows = await readRows(accessToken, spreadsheetId, `${TX_SHEET}!A2:M`);
 	const match = rows.find(({ values }) => values[0] === id);
 
 	if (!match) {
@@ -765,19 +801,8 @@ export async function updateTransaction(
 		updatedAt: now
 	};
 
-	await writeValues(accessToken, spreadsheetId, `${TX_SHEET}!A${match.row}:J${match.row}`, [
-		[
-			transaction.id,
-			transaction.date,
-			transaction.type,
-			transaction.categoryId,
-			transaction.description,
-			String(transaction.amount),
-			transaction.account,
-			transaction.notes,
-			transaction.createdAt,
-			transaction.updatedAt
-		]
+	await writeValues(accessToken, spreadsheetId, `${TX_SHEET}!A${match.row}:M${match.row}`, [
+		transactionToRow(transaction)
 	]);
 
 	return transaction;
@@ -789,7 +814,7 @@ export async function deleteTransaction(
 	sheetId: number,
 	id: string
 ): Promise<void> {
-	const rows = await readRows(accessToken, spreadsheetId, `${TX_SHEET}!A2:J`);
+	const rows = await readRows(accessToken, spreadsheetId, `${TX_SHEET}!A2:M`);
 	const match = rows.find(({ values }) => values[0] === id);
 
 	if (!match) {
@@ -948,17 +973,34 @@ export async function deleteCategory(
 	});
 }
 
+function normalizeTheme(rawTheme: string): ThemeName {
+	switch (rawTheme) {
+		case 'coral':
+		case 'marigold':
+		case 'periwinkle':
+		case 'sky-mint':
+			return rawTheme;
+		case 'sky':
+			return 'sky-mint';
+		case 'forest':
+			return 'marigold';
+		case 'orange':
+		default:
+			return 'coral';
+	}
+}
+
 export async function getSettings(
 	accessToken: string,
 	spreadsheetId: string
 ): Promise<FinanceSettings> {
 	const settings = await readSettingsMap(accessToken, spreadsheetId);
 	const currency = settings.find((entry) => entry.key === 'currency')?.value ?? DEFAULT_CURRENCY;
-	const theme = settings.find((entry) => entry.key === 'theme')?.value ?? 'orange';
+	const rawTheme = settings.find((entry) => entry.key === 'theme')?.value ?? 'coral';
 
 	return {
 		currency: isSupportedCurrency(currency) ? currency : DEFAULT_CURRENCY,
-		theme: theme === 'sky' || theme === 'forest' ? theme : 'orange'
+		theme: normalizeTheme(rawTheme)
 	};
 }
 
@@ -967,7 +1009,7 @@ export async function setTheme(
 	spreadsheetId: string,
 	theme: ThemeName
 ): Promise<FinanceSettings> {
-	if (theme !== 'orange' && theme !== 'sky' && theme !== 'forest') {
+	if (theme !== 'coral' && theme !== 'marigold' && theme !== 'periwinkle' && theme !== 'sky-mint') {
 		throw new SheetsError(400, 'That theme is not supported.');
 	}
 

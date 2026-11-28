@@ -13,21 +13,23 @@
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
-<div class="bg-background text-foreground flex min-h-screen items-center justify-center p-4">
+<div class="bg-surface text-on-surface flex min-h-screen items-center justify-center p-4">
 	<Card.Root class="w-full max-w-md text-center">
 		<Card.Content class="flex flex-col items-center gap-4 px-6 py-10">
-			<Badge variant="secondary" class="font-mono text-xs">{status}</Badge>
-			<h1 class="text-2xl font-bold tracking-tight">
-				{status === 404 ? 'This page slipped away.' : 'A small hiccup.'}
+			<Badge variant={status === 404 ? 'marigold' : 'coral'} class="font-mono text-mono-md px-3.5 py-1">
+				ERROR {status}
+			</Badge>
+			<h1 class="font-display text-display-md-mobile text-on-surface uppercase">
+				{status === 404 ? 'Halaman Tidak Ditemukan.' : 'Terjadi Sedikit Kendala.'}
 			</h1>
-			<p class="text-muted-foreground text-sm">{message}</p>
+			<p class="font-body text-body-md text-on-surface-variant">{message}</p>
 
 			<div class="mt-2 flex flex-wrap items-center justify-center gap-2">
 				{#if status !== 404}
-					<Button href="/app">Back to dashboard</Button>
+					<Button variant="pill-white" href="/app">Kembali ke Dashboard</Button>
 				{/if}
 				<Button variant={status === 404 ? 'default' : 'outline'} href="/">
-					Go home
+					Ke Beranda
 				</Button>
 			</div>
 		</Card.Content>

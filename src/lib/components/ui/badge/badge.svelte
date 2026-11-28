@@ -1,17 +1,22 @@
 <script lang="ts" module>
-	import { tv, type VariantProps } from 'tailwind-variants';
+	import { tv, type VariantProps } from '#lib/utils.ts';
 
 	export const badgeVariants = tv({
-		base: 'font-label text-label-sm inline-flex w-fit shrink-0 items-center justify-center gap-1 rounded-full border px-2.5 py-0.5 whitespace-nowrap transition-colors duration-state-change',
+		base: 'font-label text-label-sm inline-flex w-fit shrink-0 items-center justify-center gap-1 rounded-full border border-transparent px-3 py-0.5 whitespace-nowrap transition-colors duration-state-change',
 		variants: {
 			variant: {
-				default: 'bg-primary-container text-on-primary-container border-transparent',
-				secondary: 'bg-surface-container-low text-on-surface-variant border-outline',
-				destructive: 'bg-expense-container text-on-expense-container border-transparent',
-				outline: 'border-outline text-on-surface-variant bg-surface-card',
-				success: 'bg-income-container text-on-income-container border-transparent',
-				warning: 'bg-warning-container text-on-warning-container border-transparent',
-				info: 'bg-secondary-container text-on-secondary-container border-transparent'
+				default: 'bg-primary text-on-primary',
+				coral: 'bg-coral text-on-coral',
+				marigold: 'bg-marigold text-on-marigold',
+				'sky-mint': 'bg-sky-mint text-on-sky-mint',
+				ink: 'bg-ink text-on-surface',
+				'pill-white': 'bg-pill-white text-on-pill-white',
+				secondary: 'bg-surface-container text-on-surface-variant border-outline-variant',
+				destructive: 'bg-coral text-on-coral',
+				outline: 'border-outline-variant text-on-surface-variant bg-surface-card',
+				success: 'bg-income text-on-income',
+				warning: 'bg-marigold text-on-marigold',
+				info: 'bg-sky-mint text-on-sky-mint'
 			}
 		},
 		defaultVariants: {

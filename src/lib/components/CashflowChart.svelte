@@ -61,7 +61,6 @@
 		Math.max(1, ...items.flatMap((item) => [item.income, item.expense]))
 	);
 
-	// Nice rounded ceiling for clean Y-axis ticks
 	let yMax = $derived.by(() => {
 		const raw = maxValue;
 		if (raw <= 1) return 100;
@@ -71,9 +70,9 @@
 	});
 
 	const PLOT_LEFT = 54;
-	const PLOT_RIGHT = 544;
+	const PLOT_RIGHT = 538;
 	const PLOT_TOP = 18;
-	const PLOT_BOTTOM = 154;
+	const PLOT_BOTTOM = 172;
 	const PLOT_HEIGHT = PLOT_BOTTOM - PLOT_TOP;
 	const PLOT_WIDTH = PLOT_RIGHT - PLOT_LEFT;
 
@@ -84,10 +83,43 @@
 		{ y: PLOT_BOTTOM, value: 0 }
 	]);
 
-	function barRectHeight(value: number): number {
-		if (value <= 0) return 2;
-		return Math.max(4, (value / yMax) * PLOT_HEIGHT);
+	function xFor(idx: number): number {
+		if (items.length <= 1) return PLOT_LEFT + PLOT_WIDTH / 2;
+		return PLOT_LEFT + (PLOT_WIDTH * idx) / (items.length - 1);
 	}
+
+	function yFor(value: number): number {
+		const ratio = Math.min(1, Math.max(0, value / yMax));
+		return PLOT_BOTTOM - ratio * PLOT_HEIGHT;
+	}
+
+	let points = $derived(
+		items.map((item, idx) => ({
+			...item,
+			x: xFor(idx),
+			incomeY: yFor(item.income),
+			expenseY: yFor(item.expense)
+		}))
+	);
+
+	function linePath(coords: Array<{ x: number; y: number }>): string {
+		if (coords.length === 0) return '';
+		return coords
+			.map((pt, i) => `${i === 0 ? 'M' : 'L'} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`)
+			.join(' ');
+	}
+
+	function areaPath(coords: Array<{ x: number; y: number }>): string {
+		if (coords.length === 0) return '';
+		const first = coords[0];
+		const last = coords[coords.length - 1];
+		return `${linePath(coords)} L ${last.x.toFixed(1)} ${PLOT_BOTTOM} L ${first.x.toFixed(1)} ${PLOT_BOTTOM} Z`;
+	}
+
+	let incomeLinePath = $derived(linePath(points.map((p) => ({ x: p.x, y: p.incomeY }))));
+	let expenseLinePath = $derived(linePath(points.map((p) => ({ x: p.x, y: p.expenseY }))));
+	let incomeAreaPath = $derived(areaPath(points.map((p) => ({ x: p.x, y: p.incomeY }))));
+	let expenseAreaPath = $derived(areaPath(points.map((p) => ({ x: p.x, y: p.expenseY }))));
 
 	function compactTick(value: number): string {
 		if (value <= 0) return '0';
@@ -97,21 +129,20 @@
 			.trim();
 	}
 
-	let totalPeriodIncome = $derived(items.reduce((sum, item) => sum + item.income, 0));
-	let totalPeriodExpense = $derived(items.reduce((sum, item) => sum + item.expense, 0));
-	let totalPeriodNet = $derived(totalPeriodIncome - totalPeriodExpense);
-	let hoveredItem = $derived(hoveredIndex !== null ? (items[hoveredIndex] ?? null) : null);
+	let hoveredItem = $derived(hoveredIndex !== null ? (points[hoveredIndex] ?? null) : null);
 </script>
 
-<article class="bg-surface-card border-outline flex h-full flex-col justify-between gap-gutter-md rounded-md border p-gutter-md">
-	<header class="flex flex-wrap items-center justify-between gap-gutter-sm">
+<article class="bg-periwinkle text-on-periwinkle gap-gutter-md flex h-full flex-col justify-between rounded-xl p-5 sm:p-6">
+	<header class="gap-gutter-sm flex flex-wrap items-center justify-between">
 		<div>
-			<h2 class="font-title text-title-lg text-on-surface">Cashflow Dynamics</h2>
-			<p class="font-body text-body-sm text-on-surface-variant">Income vs expenses over time</p>
+			<h2 class="font-headline text-headline-md sm:text-headline-lg uppercase">CASHFLOW DYNAMICS</h2>
+			<p class="font-body text-body-sm text-on-periwinkle/85">
+				Tren pemasukan vs pengeluaran periode aktif
+			</p>
 		</div>
 
 		<div
-			class="bg-surface-container-low border-outline inline-flex items-center rounded border p-0.5"
+			class="bg-ink text-on-surface flex items-center gap-1 rounded-full p-1"
 			role="tablist"
 			aria-label="Cashflow range"
 		>
@@ -122,9 +153,9 @@
 					aria-selected={selectedRange === r.value}
 					onclick={() => (selectedRange = r.value)}
 					class={cn(
-						'font-label text-label-sm cursor-pointer rounded-sm px-2.5 py-1 transition-colors duration-state-change',
+						'font-label text-label-sm cursor-pointer rounded-full px-3 py-1 transition-colors duration-state-change',
 						selectedRange === r.value
-							? 'bg-surface-card text-on-surface shadow-xs'
+							? 'bg-pill-white text-on-pill-white'
 							: 'text-on-surface-variant hover:text-on-surface'
 					)}
 				>
@@ -134,141 +165,145 @@
 		</div>
 	</header>
 
-	<div class="relative w-full py-1">
-		<div class="mb-3 flex items-center justify-between gap-2">
-			<div class="font-body text-body-sm text-on-surface-variant min-h-[18px] tabular-nums">
+	<!-- Sage Cream Line Chart Canvas -->
+	<div class="bg-sage-cream text-on-sage-cream gap-gutter-sm flex flex-1 flex-col justify-between rounded-lg p-4">
+		<div class="flex flex-wrap items-center justify-between gap-2">
+			<div class="font-body text-body-sm text-ink/80 min-h-[22px] tabular-nums">
 				{#if hoveredItem}
-					<span class="text-on-surface font-semibold">{hoveredItem.label}:</span>
-					<span class="text-on-income-container ml-1.5 font-medium">
-						+{formatMoney(hoveredItem.income, currency)}
+					<span class="bg-ink text-on-surface inline-flex items-center gap-1.5 rounded-full px-3 py-0.5 font-mono text-xs">
+						<span class="font-bold">{hoveredItem.label}:</span>
+						<span class="text-income">+{formatMoney(hoveredItem.income, currency)}</span>
+						<span class="opacity-50">/</span>
+						<span class="text-coral">-{formatMoney(hoveredItem.expense, currency)}</span>
 					</span>
-					<span class="mx-1 opacity-40">/</span>
-					<span class="text-on-expense-container font-medium">
-						-{formatMoney(hoveredItem.expense, currency)}
+				{:else}
+					<span class="font-label text-label-sm text-ink/70 uppercase">
+						Hover titik untuk detail periode
 					</span>
 				{/if}
 			</div>
-			<div class="flex items-center gap-gutter-md">
-				<span class="font-body text-body-sm text-on-surface-variant inline-flex items-center gap-1.5">
-					<span class="bg-income size-2.5 rounded-sm" aria-hidden="true"></span> Income
+			<div class="gap-gutter-md flex items-center">
+				<span class="font-label text-label-sm inline-flex items-center gap-1.5">
+					<span class="border-ink size-2.5 rounded-full border bg-[#059669]" aria-hidden="true"></span>
+					Income
 				</span>
-				<span class="font-body text-body-sm text-on-surface-variant inline-flex items-center gap-1.5">
-					<span class="bg-expense size-2.5 rounded-sm" aria-hidden="true"></span> Expenses
+				<span class="font-label text-label-sm inline-flex items-center gap-1.5">
+					<span class="bg-coral border-ink size-2.5 rounded-full border" aria-hidden="true"></span>
+					Expenses
 				</span>
 			</div>
 		</div>
 
 		<svg
-			viewBox="0 0 560 186"
-			class="h-44 w-full overflow-visible sm:h-48"
+			viewBox="0 0 560 206"
+			class="h-48 w-full overflow-visible sm:h-56"
 			role="img"
-			aria-label={`Grouped bar chart for ${selectedRange}`}
+			aria-label={`Line chart for ${selectedRange}`}
 		>
-			<!-- Horizontal gridlines & Y ticks -->
 			{#each yTicks as tick, idx (idx)}
 				<line
 					x1={PLOT_LEFT}
 					y1={tick.y}
 					x2={PLOT_RIGHT}
 					y2={tick.y}
-					stroke={tick.value === 0 ? '#CBD5E1' : '#E2E8F0'}
+					stroke={tick.value === 0 ? '#141517' : 'rgba(20, 21, 23, 0.16)'}
+					stroke-width={tick.value === 0 ? 1.5 : 1}
 					stroke-dasharray={tick.value === 0 ? undefined : '3 3'}
 				/>
 				<text
 					x={PLOT_LEFT - 8}
 					y={tick.y + 4}
 					text-anchor="end"
-					fill="#475569"
+					fill="#141517"
 					font-size="11"
-					font-family="Instrument Sans, sans-serif"
+					font-weight="600"
+					font-family="JetBrains Mono, monospace"
 				>
 					{compactTick(tick.value)}
 				</text>
 			{/each}
 
-			<!-- Grouped bar pairs -->
-			{#each items as item, idx (item.key)}
-				{@const slotW = PLOT_WIDTH / Math.max(1, items.length)}
-				{@const centerX = PLOT_LEFT + slotW * idx + slotW / 2}
-				{@const barW = Math.min(18, Math.max(6, slotW * 0.24))}
-				{@const gap = Math.min(4, Math.max(2, slotW * 0.05))}
-				{@const incH = barRectHeight(item.income)}
-				{@const expH = barRectHeight(item.expense)}
-				{@const isDimmed = hoveredIndex !== null && hoveredIndex !== idx}
-				{@const hasActivity = item.income > 0 || item.expense > 0}
+			{#if points.length > 1}
+				<path d={incomeAreaPath} fill="rgba(5, 150, 105, 0.13)" />
+				<path d={expenseAreaPath} fill="rgba(242, 100, 76, 0.14)" />
+				<path
+					d={incomeLinePath}
+					fill="none"
+					stroke="#059669"
+					stroke-width="3"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				/>
+				<path
+					d={expenseLinePath}
+					fill="none"
+					stroke="#F2644C"
+					stroke-width="3"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				/>
+			{/if}
+
+			{#if hoveredItem}
+				<line
+					x1={hoveredItem.x}
+					y1={PLOT_TOP}
+					x2={hoveredItem.x}
+					y2={PLOT_BOTTOM}
+					stroke="#141517"
+					stroke-width="1.25"
+					stroke-dasharray="3 3"
+					opacity="0.45"
+				/>
+			{/if}
+
+			{#each points as pt, idx (pt.key)}
+				{@const isHovered = hoveredIndex === idx}
+				{@const hitWidth = points.length <= 1 ? PLOT_WIDTH : PLOT_WIDTH / Math.max(1, points.length - 1)}
+				{@const hitX = Math.max(PLOT_LEFT - 10, pt.x - hitWidth / 2)}
+				{@const hasActivity = pt.income > 0 || pt.expense > 0}
 				<g
-					class="cursor-pointer transition-opacity duration-150"
-					opacity={isDimmed ? 0.35 : 1}
+					class="cursor-pointer"
 					onmouseenter={() => (hoveredIndex = idx)}
 					onmouseleave={() => (hoveredIndex = null)}
 					role="presentation"
 				>
 					<rect
-						x={PLOT_LEFT + slotW * idx}
+						x={hitX}
 						y={PLOT_TOP}
-						width={slotW}
+						width={hitWidth}
 						height={PLOT_HEIGHT + 28}
 						fill="transparent"
 					/>
-					<rect
-						x={centerX - barW - gap / 2}
-						y={PLOT_BOTTOM - incH}
-						width={barW}
-						height={incH}
-						rx={item.income > 0 ? 3 : 1}
-						fill="#10B981"
-						opacity={item.income > 0 ? 1 : 0.3}
+					<circle
+						cx={pt.x}
+						cy={pt.incomeY}
+						r={isHovered ? 6 : 4}
+						fill="#34D399"
+						stroke="#141517"
+						stroke-width="2"
 					/>
-					<rect
-						x={centerX + gap / 2}
-						y={PLOT_BOTTOM - expH}
-						width={barW}
-						height={expH}
-						rx={item.expense > 0 ? 3 : 1}
-						fill="#F43F5E"
-						opacity={item.expense > 0 ? 1 : 0.3}
+					<circle
+						cx={pt.x}
+						cy={pt.expenseY}
+						r={isHovered ? 6 : 4}
+						fill="#F2644C"
+						stroke="#141517"
+						stroke-width="2"
 					/>
 					<text
-						x={centerX}
+						x={pt.x}
 						y={PLOT_BOTTOM + 20}
 						text-anchor="middle"
-						fill={hasActivity || hoveredIndex === idx ? '#0F172A' : '#475569'}
-						font-weight={hasActivity || hoveredIndex === idx ? '600' : '400'}
-						font-size={items.length > 8 ? '10' : '11'}
-						font-family="Instrument Sans, sans-serif"
+						fill={hasActivity || isHovered ? '#141517' : 'rgba(20, 21, 23, 0.55)'}
+						font-weight={hasActivity || isHovered ? '700' : '500'}
+						font-size={points.length > 8 ? '10' : '11'}
+						font-family="Plus Jakarta Sans, sans-serif"
 					>
-						{item.shortLabel}
+						{pt.shortLabel}
 					</text>
 				</g>
 			{/each}
 		</svg>
 	</div>
-
-	<footer class="border-outline flex flex-wrap items-center justify-between gap-gutter-md border-t pt-gutter-sm">
-		<div class="flex flex-wrap items-center gap-gutter-lg">
-			<span class="font-body text-body-sm text-on-surface-variant">
-				Total in:
-				<strong class="text-on-income-container font-semibold tabular-nums">
-					+{formatMoney(totalPeriodIncome, currency)}
-				</strong>
-			</span>
-			<span class="font-body text-body-sm text-on-surface-variant">
-				Total out:
-				<strong class="text-on-expense-container font-semibold tabular-nums">
-					-{formatMoney(totalPeriodExpense, currency)}
-				</strong>
-			</span>
-		</div>
-		<span class="font-body text-body-sm text-on-surface-variant">
-			Net:
-			<strong
-				class={cn(
-					'font-semibold tabular-nums',
-					totalPeriodNet < 0 ? 'text-on-expense-container' : 'text-on-surface'
-				)}
-			>
-				{totalPeriodNet >= 0 ? '+' : ''}{formatMoney(totalPeriodNet, currency)}
-			</strong>
-		</span>
-	</footer>
 </article>

@@ -10,15 +10,18 @@
 		Wallet
 	} from '#lib/types.ts';
 	import {
+		buildDailyTotals,
+		currentMonthKey,
 		formatMoney,
 		getTransferDestination,
 		monthLabel,
 		percentChange,
-		shiftMonth
+		shiftMonth,
+		todayISO
 	} from '#lib/finance.ts';
 	import { calculateSplitBill } from '#lib/split-bill.ts';
 	import { cn } from '#lib/utils.ts';
-	import { Button } from '#lib/components/ui/button/index.ts';
+	import * as Select from '#lib/components/ui/select/index.ts';
 	import CustomSelect from '#lib/components/CustomSelect.svelte';
 	import TransactionModal from '#lib/components/TransactionModal.svelte';
 	import CategoryManager from '#lib/components/CategoryManager.svelte';
@@ -154,6 +157,33 @@
 	let page = $state(1);
 	let pageSize = $state<number>(25);
 	let searchInputEl = $state<HTMLInputElement | null>(null);
+	let headerHidden = $state(false);
+	let lastScrollY = 0;
+
+	function handleWindowScroll() {
+		if (typeof window === 'undefined') return;
+		if (
+			showTransactionModal ||
+			showCategories ||
+			showWalletModal ||
+			showStatementImport ||
+			showSettings ||
+			showLogoutConfirm ||
+			deletingTransaction
+		) {
+			headerHidden = false;
+			return;
+		}
+		const currentY = Math.max(0, window.scrollY);
+		if (currentY <= 32) {
+			headerHidden = false;
+		} else if (currentY - lastScrollY > 6) {
+			headerHidden = true;
+		} else if (lastScrollY - currentY > 6) {
+			headerHidden = false;
+		}
+		lastScrollY = currentY;
+	}
 
 	let splitBillOverview = $derived.by(() => {
 		const openBills = (data.splitBills ?? []).filter((bill) => bill.status === 'open');
@@ -168,6 +198,33 @@
 			openCount: openBills.length,
 			outstandingTotal,
 			unpaidFriends
+		};
+	});
+
+	// 7-day daily outflow spark bars for Coral Hero KPI Card
+	let dailyPulseBars = $derived.by(() => {
+		const isCurrent = data.month === currentMonthKey();
+		const [y, m] = data.month.split('-').map(Number);
+		const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+		const endDate = isCurrent ? todayISO() : `${data.month}-${String(lastDay).padStart(2, '0')}`;
+		const pts = buildDailyTotals(data.monthTransactions, endDate, 7);
+		const maxExp = Math.max(1, ...pts.map((p) => p.expense));
+		let peakVal = 0;
+		let peakIdx = -1;
+		pts.forEach((p, idx) => {
+			if (p.expense > peakVal) {
+				peakVal = p.expense;
+				peakIdx = idx;
+			}
+		});
+		return {
+			peakVal,
+			bars: pts.map((p, idx) => ({
+				label: p.shortLabel,
+				value: p.expense,
+				heightPct: p.expense > 0 ? Math.max(18, Math.round((p.expense / maxExp) * 100)) : 14,
+				isPeak: idx === peakIdx && peakVal > 0
+			}))
 		};
 	});
 
@@ -235,6 +292,9 @@
 			'Destination Account',
 			'Amount',
 			'Currency',
+			'Original Amount',
+			'Original Currency',
+			'Exchange Rate',
 			'Notes'
 		];
 		const rows = filteredTransactions.map((t) => {
@@ -250,6 +310,9 @@
 				`"${dest.replace(/"/g, '""')}"`,
 				t.amount,
 				data.currency,
+				t.originalAmount ?? t.amount,
+				t.currency ?? data.currency,
+				t.exchangeRate ?? 1,
 				`"${(t.notes || '').replace(/"/g, '""')}"`
 			];
 		});
@@ -466,75 +529,105 @@
 		if (activeView !== 'overview') params.set('view', activeView);
 		return `/app?${params.toString()}`;
 	}
+
+	const WALLET_DOT_TONES = ['bg-income', 'bg-sky-mint', 'bg-marigold', 'bg-coral'];
 </script>
 
-<svelte:window onkeydown={handleKeyDown} />
+<svelte:window onkeydown={handleKeyDown} onscroll={handleWindowScroll} />
 
 <svelte:head>
-	<title>{data.monthLabel} — Sanku Finance</title>
+	<title>{data.monthLabel} — Sanku Pop</title>
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
 {#if bannerError}
 	<div
-		class="bg-expense-container border-expense/30 text-on-expense-container fixed bottom-6 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-md border px-4 py-3 text-sm shadow-lg"
+		class="bg-coral text-on-coral fixed bottom-6 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-full px-5 py-3 text-sm font-semibold shadow-2xl"
 		role="alert"
 	>
 		<span class="material-symbols-outlined shrink-0 text-[18px]" aria-hidden="true">error</span>
-		<p class="font-body text-body-sm flex-1 font-medium">{bannerError}</p>
+		<p class="font-body text-body-sm flex-1 font-semibold">{bannerError}</p>
 		<button
 			type="button"
 			aria-label="Dismiss error"
 			onclick={() => (dismissedError = message?.error ?? null)}
-			class="hover:bg-expense/15 inline-flex size-6 cursor-pointer items-center justify-center rounded"
+			class="bg-ink text-on-surface inline-flex size-6 cursor-pointer items-center justify-center rounded-full"
 		>
-			<span class="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
+			<span class="material-symbols-outlined text-[15px]" aria-hidden="true">close</span>
 		</button>
 	</div>
 {/if}
 
 <div class="bg-surface text-on-surface flex min-h-screen flex-col" data-theme={data.theme}>
-	<!-- Topbar Navigation (64px Desktop + 3-Row Compact Mobile) -->
-	<header class="bg-surface-card border-outline sticky top-0 z-30 border-b">
-		<!-- Row 1: Brand, Desktop Primary Nav, Right Actions -->
-		<div class="mx-auto flex h-14 max-w-[1440px] items-center justify-between gap-2 px-3 sm:px-gutter-md lg:h-16 lg:gap-gutter-md lg:px-gutter-lg">
-			<!-- Left: Brand + Desktop Nav -->
-			<div class="flex min-w-0 items-center gap-gutter-lg">
+	<!-- Shared Editorial Topbar Navigation (Stitch Desktop / Tablet / Mobile) -->
+	<header
+		class={cn(
+			'border-outline-variant bg-surface/95 sticky top-0 z-30 border-b backdrop-blur-sm transition-transform duration-200 ease-out',
+			headerHidden && '-translate-y-full pointer-events-none md:translate-y-0 md:pointer-events-auto'
+		)}
+	>
+		<div class="px-gutter-md sm:px-gutter-lg gap-gutter-sm mx-auto flex h-16 max-w-[1280px] items-center justify-between lg:h-20">
+			<!-- Left: Brand + Tablet Compact Nav + Desktop Pill Nav -->
+			<div class="gap-gutter-sm lg:gap-gutter-md flex min-w-0 items-center">
 				<button
 					type="button"
 					onclick={() => navigateView('overview')}
-					class="focus-visible:ring-primary flex shrink-0 cursor-pointer items-center gap-2 rounded focus-visible:ring-2 focus-visible:outline-none"
+					class="gap-gutter-xs sm:gap-gutter-sm flex shrink-0 cursor-pointer items-center rounded-full focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
 					aria-label="Sanku Overview"
 				>
-					<span
-						class="bg-accent-orange text-on-primary flex size-8 items-center justify-center rounded shadow-xs"
-						aria-hidden="true"
-					>
-						<svg
-							class="size-4"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2.5"
-							stroke-linecap="round"
-							stroke-linejoin="round"
-						>
-							<path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-						</svg>
+					<span class="bg-coral text-on-coral font-headline text-headline-md flex size-9 items-center justify-center rounded-full uppercase lg:size-10">
+						S
 					</span>
-					<span class="font-headline text-headline-md text-on-surface tracking-tight">Sanku</span>
+					<span class="font-headline text-headline-lg text-on-surface tracking-tight uppercase">
+						SANKU
+					</span>
 				</button>
 
-				<nav aria-label="Primary Navigation" class="hidden items-center gap-1 lg:flex">
+				<!-- Tablet Compact Inline Pill Nav (768px–1023px) -->
+				<nav
+					aria-label="Tablet Navigation"
+					class="bg-surface-card border-outline-variant hidden items-center gap-1 rounded-full border p-1 md:flex lg:hidden"
+				>
+					{#each [
+						{ id: 'overview', label: 'Overview' },
+						{ id: 'transactions', label: 'Ledger' },
+						{ id: 'accounts', label: 'Wallets' },
+						{ id: 'split', label: 'Split' }
+					] as tab (tab.id)}
+						{@const isCurrent =
+							tab.id === 'accounts'
+								? activeView === 'accounts' || activeView === 'budgets'
+								: activeView === tab.id}
+						<button
+							type="button"
+							aria-current={isCurrent ? 'page' : undefined}
+							onclick={() => navigateView(tab.id as WorkspaceView)}
+							class={cn(
+								'font-label text-label-sm cursor-pointer rounded-full px-3 py-1 whitespace-nowrap transition-colors duration-state-change',
+								isCurrent
+									? 'bg-pill-white text-on-pill-white'
+									: 'text-on-surface-variant hover:text-on-surface'
+							)}
+						>
+							{tab.label}
+						</button>
+					{/each}
+				</nav>
+
+				<!-- Desktop Full Pill Nav (1024px+) -->
+				<nav
+					aria-label="Primary Navigation"
+					class="bg-surface-card border-outline-variant gap-gutter-xs hidden min-w-0 items-center rounded-full border p-1.5 lg:flex"
+				>
 					<button
 						type="button"
 						aria-current={activeView === 'overview' ? 'page' : undefined}
 						onclick={() => navigateView('overview')}
 						class={cn(
-							'font-label text-label-md cursor-pointer rounded px-3 py-1.5 whitespace-nowrap transition-colors duration-state-change',
+							'px-gutter-md font-label text-label-lg cursor-pointer rounded-full py-1.5 whitespace-nowrap transition-colors duration-state-change',
 							activeView === 'overview'
-								? 'bg-primary-container text-on-primary-container'
-								: 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+								? 'bg-pill-white text-on-pill-white'
+								: 'text-on-surface-variant hover:text-on-surface'
 						)}
 					>
 						Overview
@@ -544,65 +637,45 @@
 						aria-current={activeView === 'transactions' ? 'page' : undefined}
 						onclick={() => navigateView('transactions')}
 						class={cn(
-							'font-label text-label-md cursor-pointer rounded px-3 py-1.5 whitespace-nowrap transition-colors duration-state-change',
+							'px-gutter-md font-label text-label-lg cursor-pointer rounded-full py-1.5 whitespace-nowrap transition-colors duration-state-change',
 							activeView === 'transactions'
-								? 'bg-primary-container text-on-primary-container'
-								: 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+								? 'bg-pill-white text-on-pill-white'
+								: 'text-on-surface-variant hover:text-on-surface'
 						)}
 					>
 						Transactions
 					</button>
 					<button
 						type="button"
-						aria-current={activeView === 'budgets' ? 'page' : undefined}
-						onclick={() => navigateView('budgets', { scrollTo: '#categories_and_budgets' })}
-						class={cn(
-							'font-label text-label-md cursor-pointer rounded px-3 py-1.5 whitespace-nowrap transition-colors duration-state-change',
-							activeView === 'budgets'
-								? 'bg-primary-container text-on-primary-container'
-								: 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
-						)}
-					>
-						Budgets
-					</button>
-					<button
-						type="button"
-						aria-current={activeView === 'accounts' ? 'page' : undefined}
+						aria-current={activeView === 'accounts' || activeView === 'budgets' ? 'page' : undefined}
 						onclick={() => navigateView('accounts')}
 						class={cn(
-							'font-label text-label-md cursor-pointer rounded px-3 py-1.5 whitespace-nowrap transition-colors duration-state-change',
-							activeView === 'accounts'
-								? 'bg-primary-container text-on-primary-container'
-								: 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+							'px-gutter-md font-label text-label-lg cursor-pointer rounded-full py-1.5 whitespace-nowrap transition-colors duration-state-change',
+							activeView === 'accounts' || activeView === 'budgets'
+								? 'bg-pill-white text-on-pill-white'
+								: 'text-on-surface-variant hover:text-on-surface'
 						)}
 					>
-						Accounts
+						Accounts &amp; Budgets
 					</button>
 					<button
 						type="button"
 						aria-current={activeView === 'split' ? 'page' : undefined}
 						onclick={() => navigateView('split', { splitTab: 'calculator' })}
 						class={cn(
-							'font-label text-label-md inline-flex cursor-pointer items-center gap-1.5 rounded px-3 py-1.5 whitespace-nowrap transition-colors duration-state-change',
+							'px-gutter-md font-label text-label-lg inline-flex cursor-pointer items-center gap-1.5 rounded-full py-1.5 whitespace-nowrap transition-colors duration-state-change',
 							activeView === 'split'
-								? 'bg-primary-container text-on-primary-container'
-								: 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
+								? 'bg-pill-white text-on-pill-white'
+								: 'text-on-surface-variant hover:text-on-surface'
 						)}
 					>
 						<span>Beli Rame-rame</span>
 						{#if splitBillOverview.openCount > 0}
-							<span class="bg-warning-container text-on-warning-container font-label text-[11px] rounded-full px-1.5 py-0 tabular-nums">
+							<span class="bg-coral text-on-coral font-label text-label-sm rounded-full px-2 py-0.5 tabular-nums uppercase">
 								{splitBillOverview.openCount}
 							</span>
 						{:else}
-							<span
-								class={cn(
-									'border-outline font-label text-[11px] rounded-full border px-1.5 py-0',
-									activeView === 'split'
-										? 'bg-surface-card text-on-primary-container'
-										: 'bg-surface-container-low text-on-surface-variant'
-								)}
-							>
+							<span class="bg-marigold text-on-marigold font-label text-label-sm rounded-full px-2 py-0.5 uppercase">
 								Split
 							</span>
 						{/if}
@@ -610,18 +683,17 @@
 				</nav>
 			</div>
 
-			<!-- Right: Month Switcher (Desktop/Tablet) + Import + New Entry + Settings + Avatar -->
-			<div class="flex shrink-0 items-center gap-1.5 sm:gap-gutter-sm">
-				<!-- Desktop Month Switcher -->
-				<div class="bg-surface-card border-outline hidden shrink-0 items-center overflow-hidden rounded border sm:inline-flex">
+			<!-- Right: White Pill Month Switcher + New Entry + Settings + Avatar -->
+			<div class="gap-gutter-xs sm:gap-gutter-sm flex shrink-0 items-center">
+				<div class="bg-pill-white text-on-pill-white font-label text-label-sm lg:text-label-lg hidden items-center gap-0.5 rounded-full px-1.5 py-0.5 lg:px-2 lg:py-1 sm:flex">
 					<a
 						href={monthHref(shiftMonth(data.month, -1))}
-						aria-label="Previous month"
-						class="text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface inline-flex h-8 w-7 items-center justify-center transition-colors"
+						aria-label="Bulan sebelumnya"
+						class="inline-flex size-7 items-center justify-center rounded-full transition-opacity hover:opacity-70"
 					>
 						<span class="material-symbols-outlined text-[16px]" aria-hidden="true">chevron_left</span>
 					</a>
-					<form method="GET" action="/app" bind:this={monthForm} class="min-w-[106px]">
+					<form method="GET" action="/app" bind:this={monthForm} class="min-w-[88px] lg:min-w-[104px]">
 						{#if activeView !== 'overview'}
 							<input type="hidden" name="view" value={activeView} />
 						{/if}
@@ -631,98 +703,79 @@
 							options={data.availableMonths.map((m) => ({ value: m.key, label: m.label }))}
 							onchange={() => monthForm?.requestSubmit()}
 							size="sm"
-							variant="ghost"
+							variant="pill-white"
 						/>
 					</form>
 					<a
 						href={monthHref(shiftMonth(data.month, 1))}
-						aria-label="Next month"
-						class="text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface inline-flex h-8 w-7 items-center justify-center transition-colors"
+						aria-label="Bulan berikutnya"
+						class="inline-flex size-7 items-center justify-center rounded-full transition-opacity hover:opacity-70"
 					>
 						<span class="material-symbols-outlined text-[16px]" aria-hidden="true">chevron_right</span>
 					</a>
 				</div>
 
-				<!-- Desktop Import Button -->
-				<button
-					type="button"
-					onclick={() => (showStatementImport = true)}
-					class="bg-surface-card border-outline font-label text-label-md text-on-surface hover:bg-surface-container-low hidden cursor-pointer items-center gap-1.5 rounded border px-3 py-1.5 whitespace-nowrap transition-colors duration-state-change xl:inline-flex"
-				>
-					<span class="material-symbols-outlined text-on-surface-variant text-[17px]" aria-hidden="true">
-						upload_file
-					</span>
-					<span>Import</span>
-				</button>
-
-				<!-- Primary CTA: + New Entry -->
 				<button
 					type="button"
 					onclick={() => openCreate('expense')}
-					class="bg-primary text-on-primary font-label text-label-sm sm:text-label-md focus-visible:ring-primary inline-flex shrink-0 cursor-pointer items-center justify-center gap-1 rounded px-2.5 py-1.5 whitespace-nowrap transition-opacity duration-state-change hover:opacity-95 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none sm:px-3.5"
+					class="gap-gutter-xs px-3 lg:px-gutter-md bg-primary text-on-primary font-label text-label-sm lg:text-label-lg inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full py-1.5 lg:py-2 whitespace-nowrap transition-opacity duration-state-change hover:opacity-90"
 				>
-					<span class="material-symbols-outlined text-[16px] sm:text-[17px]" aria-hidden="true">add</span>
-					<span>New Entry</span>
+					<span class="material-symbols-outlined text-[16px] lg:text-[18px]" aria-hidden="true">add</span>
+					<span class="lg:hidden">Entry</span>
+					<span class="hidden lg:inline">New Entry</span>
 				</button>
 
-				<!-- Settings & Drive Sync Trigger -->
 				<button
 					type="button"
 					onclick={() => (showSettings = true)}
 					aria-label="Open Settings and Google Drive Sync"
 					title="Settings & Google Drive Sync"
-					class="border-outline bg-surface-card hover:bg-surface-container-low inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded border px-2 py-1.5 transition-colors duration-state-change sm:px-2.5"
+					class="bg-surface-card border-outline-variant text-on-surface hover:bg-surface-container relative inline-flex size-9 lg:size-10 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors duration-state-change"
 				>
-					<span class="bg-income size-2 shrink-0 rounded-full" aria-hidden="true"></span>
-					<span class="material-symbols-outlined text-on-surface-variant text-[17px] sm:text-[18px]" aria-hidden="true">
-						settings
-					</span>
+					<span class="material-symbols-outlined text-[18px] lg:text-[20px]" aria-hidden="true">tune</span>
+					<span class="bg-income border-surface absolute top-1.5 right-1.5 size-2 rounded-full border" aria-hidden="true"></span>
 				</button>
 
-				<!-- User Avatar Trigger -->
 				<button
 					type="button"
 					onclick={() => (showSettings = true)}
 					aria-label="Account menu"
 					title={data.user.name}
-					class="border-outline bg-surface-card hover:bg-surface-container-low inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border p-0.5 transition-colors duration-state-change sm:py-1 sm:pr-1.5 sm:pl-1"
+					class="border-outline-variant bg-surface-card hover:bg-surface-container hidden size-10 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border transition-colors lg:inline-flex"
 				>
 					{#if data.user.picture}
 						<img
 							src={data.user.picture}
 							alt=""
 							referrerpolicy="no-referrer"
-							class="size-7 rounded-full object-cover"
+							class="size-full object-cover"
 						/>
 					{:else}
-						<span class="bg-primary-container text-on-primary-container font-label text-label-sm flex size-7 items-center justify-center rounded-full">
+						<span class="bg-marigold text-on-marigold font-label text-label-sm flex size-full items-center justify-center">
 							{initials}
 						</span>
 					{/if}
-					<span class="material-symbols-outlined text-on-surface-variant hidden text-[16px] sm:inline-flex" aria-hidden="true">
-						expand_more
-					</span>
 				</button>
 			</div>
 		</div>
 
-		<!-- Mobile Row 2: Month Switcher + Import (<sm) -->
-		<div class="border-outline bg-surface-container-high flex items-center justify-between gap-2 border-t px-3 py-2 sm:hidden">
-			<div class="bg-surface-card border-outline inline-flex items-center overflow-hidden rounded border">
+		<!-- Mobile Row 2: Compact Month Switcher + Import (<sm) -->
+		<div class="border-outline-variant bg-surface-container-low flex items-center justify-between gap-2 border-t px-4 py-2 sm:hidden">
+			<div class="bg-pill-white text-on-pill-white inline-flex items-center rounded-full px-2 py-0.5">
 				<a
 					href={monthHref(shiftMonth(data.month, -1))}
-					aria-label="Previous month"
-					class="text-on-surface-variant hover:bg-surface-container-low inline-flex size-7 items-center justify-center"
+					aria-label="Bulan sebelumnya"
+					class="inline-flex size-7 items-center justify-center"
 				>
 					<span class="material-symbols-outlined text-[16px]" aria-hidden="true">chevron_left</span>
 				</a>
-				<span class="font-label text-label-sm text-on-surface px-2.5 whitespace-nowrap tabular-nums">
-					{data.monthLabel}
+				<span class="font-headline text-headline-md px-2 uppercase tabular-nums">
+					{shortMonthText}
 				</span>
 				<a
 					href={monthHref(shiftMonth(data.month, 1))}
-					aria-label="Next month"
-					class="text-on-surface-variant hover:bg-surface-container-low inline-flex size-7 items-center justify-center"
+					aria-label="Bulan berikutnya"
+					class="inline-flex size-7 items-center justify-center"
 				>
 					<span class="material-symbols-outlined text-[16px]" aria-hidden="true">chevron_right</span>
 				</a>
@@ -731,91 +784,79 @@
 			<button
 				type="button"
 				onclick={() => (showStatementImport = true)}
-				class="bg-surface-card border-outline font-label text-label-sm text-on-surface inline-flex cursor-pointer items-center gap-1 rounded border px-2.5 py-1 whitespace-nowrap"
+				class="bg-surface-card border-outline-variant font-label text-label-sm text-on-surface inline-flex cursor-pointer items-center gap-1 rounded-full border px-3 py-1.5 whitespace-nowrap"
 			>
-				<span class="material-symbols-outlined text-on-surface-variant text-[15px]" aria-hidden="true">
-					upload_file
-				</span>
+				<span class="material-symbols-outlined text-[15px]" aria-hidden="true">upload_file</span>
 				<span>Import</span>
 			</button>
 		</div>
-
-		<!-- Mobile Row 3: Horizontal Nav Pills (<lg) -->
-		<nav
-			aria-label="Mobile Navigation"
-			class="border-outline bg-surface-card flex items-center gap-1 overflow-x-auto border-t px-3 py-1.5 lg:hidden"
-		>
-			{#each [
-				{ id: 'overview', label: 'Overview' },
-				{ id: 'transactions', label: 'Transactions' },
-				{ id: 'budgets', label: 'Budgets' },
-				{ id: 'accounts', label: 'Accounts' },
-				{ id: 'split', label: 'Beli Rame-rame' }
-			] as tab (tab.id)}
-				<button
-					type="button"
-					aria-current={activeView === tab.id ? 'page' : undefined}
-					onclick={() =>
-						navigateView(tab.id as WorkspaceView, {
-							scrollTo: tab.id === 'budgets' ? '#categories_and_budgets' : undefined
-						})}
-					class={cn(
-						'font-label text-label-sm shrink-0 cursor-pointer rounded px-2.5 py-1 whitespace-nowrap transition-colors',
-						activeView === tab.id
-							? 'bg-primary-container text-on-primary-container'
-							: 'text-on-surface-variant hover:text-on-surface'
-					)}
-				>
-					{tab.label}
-				</button>
-			{/each}
-		</nav>
 	</header>
 
-	<!-- Main Workspace Content -->
-	<main class="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-gutter-lg p-gutter-md lg:p-gutter-lg">
+	<!-- Main Bento Workspace -->
+	<main class="px-gutter-md sm:px-gutter-lg gap-gutter-lg mx-auto flex w-full max-w-[1280px] flex-1 flex-col pt-5 pb-24 sm:pt-8 md:pb-8">
 		{#if activeView === 'overview'}
-			<!-- OVERVIEW VIEW (Stitch Screen 1) -->
-			<div class="flex flex-wrap items-baseline justify-between gap-gutter-sm">
+			<!-- OVERVIEW VIEW (Stitch Editorial Pop) -->
+			<div class="gap-gutter-md flex flex-wrap items-center justify-between">
 				<div>
-					<h1 class="font-headline text-headline-md text-on-surface sm:text-headline-lg">Overview</h1>
-					<p class="font-body text-body-sm text-on-surface-variant sm:text-body-md">
-						Monthly cashflow, wallet liquidity, and spending pulse for {data.monthLabel}.
+					<h1 class="font-display text-headline-lg sm:text-display-md text-on-surface uppercase">
+						OVERVIEW &amp; CASHFLOW
+					</h1>
+					<p class="font-body text-body-md text-on-surface-variant">
+						Ringkasan arus kas, likuiditas {walletBreakdown.length} dompet, dan detak pengeluaran {data.monthLabel}.
 					</p>
+				</div>
+
+				<div class="gap-gutter-sm flex flex-wrap items-center">
+					<button
+						type="button"
+						onclick={() => (showSettings = true)}
+						class="bg-pill-white text-on-pill-white font-label text-label-lg flex cursor-pointer items-center gap-1.5 rounded-full px-4 py-2 transition-opacity hover:opacity-90"
+					>
+						<span>{data.currency}</span>
+						<span class="material-symbols-outlined text-[16px]" aria-hidden="true">expand_more</span>
+					</button>
+					<button
+						type="button"
+						onclick={() => (showStatementImport = true)}
+						class="bg-surface-card border-outline-variant text-on-surface font-label text-label-lg hover:bg-surface-container flex cursor-pointer items-center gap-1.5 rounded-full border px-4 py-2 transition-colors"
+					>
+						<span class="material-symbols-outlined text-[16px]" aria-hidden="true">upload_file</span>
+						<span>Import e-Statement</span>
+					</button>
 				</div>
 			</div>
 
 			<!-- Contextual Beli Rame-rame Receivable Banner -->
 			{#if splitBillOverview.openCount > 0 && splitBillOverview.outstandingTotal > 0}
-				<section class="bg-warning-container border-warning/30 flex flex-col justify-between gap-3 rounded-md border px-gutter-md py-3 sm:flex-row sm:items-center">
+				<section class="bg-marigold text-on-marigold flex flex-col justify-between gap-3 rounded-xl px-6 py-4 sm:flex-row sm:items-center">
 					<div class="flex items-center gap-3">
-						<span class="material-symbols-outlined text-on-warning-container text-[22px]" aria-hidden="true">
-							receipt_long
+						<span class="bg-ink text-on-surface flex size-10 shrink-0 items-center justify-center rounded-full">
+							<span class="material-symbols-outlined text-[20px]" aria-hidden="true">receipt_long</span>
 						</span>
 						<div>
-							<p class="font-title text-title-md text-on-warning-container">
-								Unsettled Beli Rame-rame ({splitBillOverview.openCount} {splitBillOverview.openCount === 1 ? 'session' : 'sessions'} · {splitBillOverview.unpaidFriends} {splitBillOverview.unpaidFriends === 1 ? 'friend' : 'friends'})
+							<p class="font-headline text-headline-md uppercase">
+								Tagihan Beli Rame-rame ({splitBillOverview.openCount} sesi · {splitBillOverview.unpaidFriends} teman belum lunas)
 							</p>
-							<p class="font-body text-body-sm text-on-warning-container/90 tabular-nums">
-								Pending friend repayments:
-								<strong class="font-semibold">
+							<p class="font-body text-body-sm text-ink/80 tabular-nums">
+								Total piutang menunggu transfer:
+								<strong class="font-mono font-bold">
 									{formatMoney(splitBillOverview.outstandingTotal, data.currency)}
 								</strong>
 							</p>
 						</div>
 					</div>
-					<div class="flex items-center gap-2">
+					<div class="flex flex-wrap items-center gap-2">
 						<button
 							type="button"
 							onclick={() => navigateView('split', { splitTab: 'history' })}
-							class="bg-surface-card border-outline font-label text-label-sm text-on-surface hover:bg-surface-container-low cursor-pointer rounded border px-3 py-1.5"
+							class="bg-pill-white text-on-pill-white font-label text-label-sm cursor-pointer rounded-full px-4 py-2 transition-opacity hover:opacity-90"
 						>
 							Check Settlements
 						</button>
 						<button
 							type="button"
 							onclick={() => navigateView('split', { splitTab: 'calculator' })}
-							class="bg-primary text-on-primary font-label text-label-sm cursor-pointer rounded px-3 py-1.5 hover:opacity-95"
+							class="bg-ink text-on-surface font-label text-label-sm cursor-pointer rounded-full px-4 py-2 transition-opacity hover:opacity-90"
 						>
 							+ New Split
 						</button>
@@ -823,118 +864,268 @@
 				</section>
 			{/if}
 
-			<!-- Section 1: KPI Summary Row (2x2 mobile, 4-col desktop) -->
-			<section aria-label="Key Performance Indicators" class="grid grid-cols-2 items-stretch gap-2.5 sm:gap-gutter-md xl:grid-cols-4">
-				<!-- Card 1: Net Surplus / Deficit -->
-				<article class="bg-surface-card border-outline flex h-full flex-col justify-between gap-gutter-sm rounded-md border p-3 sm:p-gutter-md">
-					<header class="flex items-center justify-between gap-1.5">
-						<h2 class="font-label text-label-sm text-on-surface-variant sm:text-label-md">
-							Net Surplus / Deficit
-						</h2>
-						<span
-							role="status"
-							class={cn(
-								'font-label text-label-sm inline-flex items-center rounded-full px-2 py-0.5',
-								data.summary.net >= 0
-									? 'bg-income-container text-on-income-container'
-									: 'bg-expense-container text-on-expense-container'
-							)}
-						>
-							{data.summary.net >= 0 ? 'Surplus' : 'Deficit'}
+			<!-- Row 1: Hero Coral KPI Card (5 cols) + Periwinkle Cashflow Dynamics Card (7 cols) -->
+			<section aria-label="Cashflow Overview" class="gap-gutter-md grid grid-cols-12 items-stretch">
+				<!-- Coral Hero KPI Card -->
+				<article class="bg-coral text-on-coral gap-gutter-md col-span-12 flex flex-col justify-between rounded-xl p-6 lg:col-span-5">
+					<div class="flex items-center justify-between gap-2">
+						<span class="font-label text-label-sm font-bold tracking-wider uppercase">
+							NET SURPLUS / DEFICIT
 						</span>
-					</header>
-					<div class="flex flex-col gap-gutter-xs">
-						<p
-							class={cn(
-								'font-headline text-headline-md sm:text-headline-lg tabular-nums',
-								data.summary.net >= 0 ? 'text-on-income-container' : 'text-on-expense-container'
-							)}
-						>
-							{data.summary.net >= 0 ? '+' : ''}{formatMoney(data.summary.net, data.currency)}
-						</p>
-						<p class="font-body text-body-sm text-on-surface-variant truncate tabular-nums">
+						<div class="flex items-center gap-1.5">
 							{#if netChange !== null}
-								<span class={netChange >= 0 ? 'text-on-income-container font-semibold' : 'text-on-expense-container font-semibold'}>
+								<span class="bg-sage-cream text-on-sage-cream font-mono text-mono-sm rounded-full px-2.5 py-0.5 tabular-nums">
 									{netChange >= 0 ? '↑' : '↓'} {Math.abs(netChange).toFixed(1)}%
 								</span>
-								vs last month
-							{:else}
-								vs last month
 							{/if}
-						</p>
+							<span class="bg-ink text-on-surface font-mono text-mono-md rounded-full px-3 py-1 uppercase tabular-nums">
+								{data.summary.net >= 0 ? 'SURPLUS' : 'DEFICIT'}
+							</span>
+						</div>
 					</div>
-				</article>
 
-				<!-- Card 2: Total Inflow -->
-				<article class="bg-surface-card border-outline flex h-full flex-col justify-between gap-gutter-sm rounded-md border p-3 sm:p-gutter-md">
-					<header class="flex items-center justify-between gap-1.5">
-						<h2 class="font-label text-label-sm text-on-surface-variant sm:text-label-md">
-							Total Inflow
-						</h2>
-						<span class="material-symbols-outlined text-on-income-container text-[18px]" aria-hidden="true">
-							south_west
-						</span>
-					</header>
-					<div class="flex flex-col gap-gutter-xs">
-						<p class="font-headline text-headline-md text-on-surface sm:text-headline-lg tabular-nums">
-							{formatMoney(data.summary.income, data.currency)}
-						</p>
-						<p class="font-body text-body-sm text-on-surface-variant truncate tabular-nums">
+					<div class="font-display text-display-md-mobile sm:text-display-md tabular-nums">
+						{data.summary.net >= 0 ? '+' : ''}{formatMoney(data.summary.net, data.currency)}
+					</div>
+
+					<div class="gap-gutter-sm border-ink/15 grid grid-cols-2 border-t pt-3">
+						<div class="bg-sage-cream text-on-sage-cream rounded-lg p-3.5">
+							<div class="font-label text-label-sm uppercase">TOTAL INFLOW</div>
+							<div class="font-title text-title-lg mt-1 tabular-nums">
+								{formatMoney(data.summary.income, data.currency)}
+							</div>
 							{#if incomeChange !== null}
-								<span class={incomeChange >= 0 ? 'text-on-income-container font-semibold' : 'text-on-expense-container font-semibold'}>
-									{incomeChange >= 0 ? '↑' : '↓'} {Math.abs(incomeChange).toFixed(1)}%
-								</span>
-								vs {formatMoney(data.summary.previousIncome, data.currency)}
-							{:else}
-								vs last month
+								<div class="font-mono text-ink/70 mt-0.5 text-[11px] tabular-nums">
+									{incomeChange >= 0 ? '↑' : '↓'} {Math.abs(incomeChange).toFixed(1)}% vs lalu
+								</div>
 							{/if}
-						</p>
-					</div>
-				</article>
-
-				<!-- Card 3: Total Outflow -->
-				<article class="bg-surface-card border-outline flex h-full flex-col justify-between gap-gutter-sm rounded-md border p-3 sm:p-gutter-md">
-					<header class="flex items-center justify-between gap-1.5">
-						<h2 class="font-label text-label-sm text-on-surface-variant sm:text-label-md">
-							Total Outflow
-						</h2>
-						<span class="material-symbols-outlined text-on-expense-container text-[18px]" aria-hidden="true">
-							north_east
-						</span>
-					</header>
-					<div class="flex flex-col gap-gutter-xs">
-						<p class="font-headline text-headline-md text-on-surface sm:text-headline-lg tabular-nums">
-							{formatMoney(data.summary.expense, data.currency)}
-						</p>
-						<p class="font-body text-body-sm text-on-surface-variant truncate tabular-nums">
+						</div>
+						<div class="bg-sage-cream text-on-sage-cream rounded-lg p-3.5">
+							<div class="font-label text-label-sm uppercase">TOTAL OUTFLOW</div>
+							<div class="font-title text-title-lg mt-1 tabular-nums">
+								{formatMoney(data.summary.expense, data.currency)}
+							</div>
 							{#if expenseChange !== null}
-								<span class={expenseChange <= 0 ? 'text-on-income-container font-semibold' : 'text-on-expense-container font-semibold'}>
-									{expenseChange >= 0 ? '↑' : '↓'} {Math.abs(expenseChange).toFixed(1)}%
-								</span>
-								vs {formatMoney(data.summary.previousExpense, data.currency)}
-							{:else}
-								vs last month
+								<div class="font-mono text-ink/70 mt-0.5 text-[11px] tabular-nums">
+									{expenseChange >= 0 ? '↑' : '↓'} {Math.abs(expenseChange).toFixed(1)}% vs lalu
+								</div>
 							{/if}
-						</p>
+						</div>
+					</div>
+
+					<!-- 7-Day Outflow Bar Sparkline with Dark Pill Peak -->
+					<div class="pt-2">
+						<div class="mb-2 flex justify-center">
+							<span class="bg-ink text-on-surface font-mono text-mono-sm rounded-full px-3 py-1 tabular-nums">
+								Peak: {formatMoney(dailyPulseBars.peakVal, data.currency)}
+							</span>
+						</div>
+						<div class="gap-gutter-sm grid h-24 grid-cols-7 items-end">
+							{#each dailyPulseBars.bars as bar, idx (`d-${idx}-${bar.label}`)}
+								<div class="flex h-full flex-col items-center justify-end gap-1">
+									<div
+										class={cn(
+											'w-full rounded-md transition-all',
+											bar.isPeak ? 'bg-ink' : 'bg-ink/20'
+										)}
+										style={`height: ${Math.max(12, Math.round(bar.heightPct * 0.72))}%`}
+										title={`${bar.label}: ${formatMoney(bar.value, data.currency)}`}
+									></div>
+									<span class={cn('font-label text-label-sm', bar.isPeak && 'font-extrabold')}>
+										{bar.label}
+									</span>
+								</div>
+							{/each}
+						</div>
 					</div>
 				</article>
 
-				<!-- Card 4: Savings Rate -->
-				<article class="bg-surface-card border-outline flex h-full flex-col justify-between gap-gutter-sm rounded-md border p-3 sm:p-gutter-md">
-					<header class="flex items-center justify-between gap-1.5">
-						<h2 class="font-label text-label-sm text-on-surface-variant sm:text-label-md">
-							Savings Rate
-						</h2>
-						<span class="bg-surface-container-low font-mono text-mono-sm text-on-surface-variant rounded-full px-2 py-0.5 tabular-nums">
+				<!-- Periwinkle Cashflow Dynamics Card -->
+				<div class="col-span-12 lg:col-span-7">
+					<CashflowChart
+						transactions={data.transactions}
+						month={data.month}
+						months={data.monthTotals}
+						currency={data.currency}
+					/>
+				</div>
+			</section>
+
+			<!-- Row 2: Liquidity & Wallets (5) + Stacked Folder-Tab Budgets (4) + Sage Cream Pulse (3) -->
+			<section aria-label="Wallets, Budgets, and Financial Pulse" class="gap-gutter-md grid grid-cols-12 items-stretch">
+				<!-- Combined Balance & Wallets -->
+				<article class="bg-surface-card border-outline-variant gap-gutter-md col-span-12 flex flex-col justify-between rounded-xl border p-5 sm:p-6 md:col-span-6 lg:col-span-5">
+					<div class="flex items-center justify-between gap-2">
+						<div>
+							<h2 class="font-headline text-headline-lg text-on-surface uppercase">
+								LIQUIDITY &amp; WALLETS
+							</h2>
+							<p class="font-body text-body-sm text-on-surface-variant">
+								{walletBreakdown.length} dompet aktif tersambung
+							</p>
+						</div>
+						<div class="flex items-center gap-1.5">
+							<button
+								type="button"
+								onclick={() => {
+									editingWallet = null;
+									showWalletModal = true;
+								}}
+								class="bg-surface-container text-on-surface hover:bg-marigold hover:text-on-marigold font-label text-label-sm cursor-pointer rounded-full px-3 py-1.5 transition-colors"
+							>
+								+ Add
+							</button>
+							<button
+								type="button"
+								onclick={() => navigateView('accounts')}
+								aria-label="Lihat semua dompet"
+								class="bg-pill-white text-on-pill-white flex size-10 cursor-pointer items-center justify-center rounded-full transition-transform hover:scale-105"
+							>
+								<span class="material-symbols-outlined text-[18px]" aria-hidden="true">north_east</span>
+							</button>
+						</div>
+					</div>
+
+					<div class="bg-sky-mint text-on-sky-mint flex items-center justify-between gap-2 rounded-lg p-4">
+						<div class="min-w-0">
+							<div class="font-label text-label-sm uppercase">COMBINED BALANCE</div>
+							<div class="font-headline text-headline-lg mt-0.5 truncate tabular-nums">
+								{formatMoney(combinedBalance, data.currency)}
+							</div>
+						</div>
+						<span class="bg-ink text-on-surface font-label text-label-sm shrink-0 rounded-full px-3 py-1">
+							{walletBreakdown.length} {walletBreakdown.length === 1 ? 'Account' : 'Accounts'}
+						</span>
+					</div>
+
+					<div class="gap-gutter-sm flex flex-col">
+						{#if previewWallets.length === 0}
+							<div class="bg-surface-container rounded-lg px-4 py-5 text-center">
+								<p class="font-body text-body-sm text-on-surface-variant">
+									Belum ada dompet. Tambahkan akun bank atau e-wallet pertama.
+								</p>
+							</div>
+						{:else}
+							{#each previewWallets as wallet, idx (wallet.id)}
+								<button
+									type="button"
+									onclick={() => filterByWalletAndOpenLedger(wallet.name)}
+									class="bg-surface-container hover:bg-surface-container/75 flex cursor-pointer items-center justify-between gap-3 rounded-lg px-4 py-3 text-left transition-colors"
+								>
+									<div class="gap-gutter-sm flex min-w-0 items-center">
+										<span
+											class={cn('size-3 shrink-0 rounded-full', WALLET_DOT_TONES[idx % WALLET_DOT_TONES.length])}
+											aria-hidden="true"
+										></span>
+										<div class="min-w-0">
+											<span class="font-title text-title-md text-on-surface block truncate">
+												{wallet.name}
+											</span>
+											<span class="font-body text-body-sm text-on-surface-variant">
+												{wallet.count} {wallet.count === 1 ? 'tx' : 'txs'} · Filter
+											</span>
+										</div>
+									</div>
+									<span
+										class={cn(
+											'font-mono text-mono-md shrink-0 tabular-nums',
+											wallet.balance < 0 ? 'text-coral' : 'text-on-surface'
+										)}
+									>
+										{formatMoney(wallet.balance, data.currency)}
+									</span>
+								</button>
+							{/each}
+						{/if}
+					</div>
+				</article>
+
+				<!-- Stacked Folder-Tab Budgets Card -->
+				<div class="col-span-12 md:col-span-6 lg:col-span-4">
+					<BudgetPanel
+						budgets={data.budgets}
+						currency={data.currency}
+						onmanage={() => navigateView('budgets', { scrollTo: '#categories_and_budgets' })}
+					/>
+				</div>
+
+				<!-- Sage Cream Financial Pulse Card -->
+				<article class="bg-sage-cream text-on-sage-cream gap-gutter-md col-span-12 flex flex-col justify-between rounded-xl p-5 sm:p-6 lg:col-span-3">
+					<div class="flex items-center justify-between gap-2">
+						<h2 class="font-headline text-headline-lg uppercase">PULSE</h2>
+						<span class="bg-ink text-on-surface font-label text-label-sm rounded-full px-3 py-1 uppercase tabular-nums">
+							{expenses.length} TXS
+						</span>
+					</div>
+
+					<div class="gap-gutter-sm grid grid-cols-2 lg:grid-cols-1">
+						<div class="bg-ink/5 rounded-lg p-3">
+							<div class="font-label text-label-sm text-ink/70 uppercase">LARGEST EXPENSE</div>
+							{#if largestExpense}
+								<div class="font-title text-title-lg mt-0.5 tabular-nums">
+									{formatMoney(largestExpense.amount, data.currency)}
+								</div>
+								<div class="font-body text-body-sm text-ink/70 truncate">
+									{largestExpense.description}
+								</div>
+							{:else}
+								<div class="font-title text-title-lg mt-0.5">—</div>
+								<div class="font-body text-body-sm text-ink/70">Belum ada pengeluaran</div>
+							{/if}
+						</div>
+
+						<div class="bg-ink/5 rounded-lg p-3">
+							<div class="font-label text-label-sm text-ink/70 uppercase">AVERAGE EXPENSE</div>
+							<div class="font-title text-title-lg mt-0.5 tabular-nums">
+								{formatMoney(averageExpense, data.currency)}
+							</div>
+						</div>
+
+						<div class="bg-ink/5 rounded-lg p-3">
+							<div class="font-label text-label-sm text-ink/70 uppercase">TOP CATEGORY</div>
+							{#if mostUsedCategory}
+								<div class="font-title text-title-md mt-0.5 truncate">
+									{mostUsedCategory.category.emoji} {mostUsedCategory.category.name}
+								</div>
+								<div class="font-body text-body-sm text-ink/70 tabular-nums">
+									{mostUsedCategory.count}x · {formatMoney(mostUsedCategory.amount, data.currency)}
+								</div>
+							{:else}
+								<div class="font-title text-title-md mt-0.5">—</div>
+							{/if}
+						</div>
+
+						<div class="bg-ink/5 rounded-lg p-3">
+							<div class="font-label text-label-sm text-ink/70 uppercase">DAILY BURN</div>
+							<div class="font-title text-title-lg mt-0.5 tabular-nums">
+								{formatMoney(data.summary.dailyAverage, data.currency)}
+							</div>
+						</div>
+					</div>
+				</article>
+			</section>
+
+			<!-- Row 3: Savings Rate Highlight (5 cols) + Expense Distribution Donut (7 cols) -->
+			<section aria-label="Savings Rate and Category Distribution" class="gap-gutter-md grid grid-cols-12 items-stretch">
+				<article class="bg-surface-card border-outline-variant gap-gutter-md col-span-12 flex flex-col justify-between rounded-xl border p-6 lg:col-span-5">
+					<div class="flex items-center justify-between gap-2">
+						<div>
+							<h2 class="font-headline text-headline-lg text-on-surface uppercase">SAVINGS RATE</h2>
+							<p class="font-body text-body-sm text-on-surface-variant">
+								Rasio tabungan bersih bulan {shortMonthText}
+							</p>
+						</div>
+						<span class="bg-marigold text-on-marigold font-mono text-mono-sm rounded-full px-3 py-1 tabular-nums">
 							{activeDays}d active
 						</span>
-					</header>
-					<div class="flex flex-col gap-gutter-sm">
-						<p class="font-headline text-headline-md text-on-surface sm:text-headline-lg tabular-nums">
+					</div>
+
+					<div class="space-y-3">
+						<div class="font-display text-display-md-mobile sm:text-display-md text-on-surface tabular-nums">
 							{data.summary.savingsRate === null ? '—' : `${Math.round(data.summary.savingsRate)}%`}
-						</p>
+						</div>
 						<div
-							class="bg-surface-container-low h-1.5 w-full overflow-hidden rounded-full"
+							class="bg-surface h-3 w-full overflow-hidden rounded-full"
 							role="progressbar"
 							aria-valuenow={Math.min(100, Math.max(0, Math.round(data.summary.savingsRate ?? 0)))}
 							aria-valuemin={0}
@@ -946,100 +1137,23 @@
 							></div>
 						</div>
 					</div>
-				</article>
-			</section>
 
-			<!-- Section 2: Liquidity & Accounts Strip -->
-			<section aria-label="Liquidity and Accounts" class="flex flex-col gap-gutter-md">
-				<div class="flex flex-wrap items-center justify-between gap-gutter-sm">
-					<h2 class="font-title text-title-md text-on-surface sm:text-title-lg">
-						Liquidity &amp; Accounts
-					</h2>
-					<div class="flex items-center gap-gutter-sm">
+					<div class="flex flex-wrap items-center justify-between gap-2 pt-2">
+						<span class="font-body text-body-sm text-on-surface-variant">
+							Target sehat: &ge; 20% dari pemasukan
+						</span>
 						<button
 							type="button"
-							onclick={() => navigateView('accounts')}
-							class="bg-surface-card border-outline font-label text-label-sm sm:text-label-md text-on-surface hover:bg-surface-container-low cursor-pointer rounded border px-3 py-1.5 transition-colors duration-state-change"
+							onclick={() => navigateView('transactions')}
+							class="bg-pill-white text-on-pill-white font-label text-label-sm inline-flex cursor-pointer items-center gap-1 rounded-full px-3.5 py-1.5 transition-opacity hover:opacity-90"
 						>
-							View All ({walletBreakdown.length})
-						</button>
-						<button
-							type="button"
-							onclick={() => {
-								editingWallet = null;
-								showWalletModal = true;
-							}}
-							class="bg-surface-card border-outline font-label text-label-sm sm:text-label-md text-primary hover:bg-primary-container/40 inline-flex cursor-pointer items-center gap-1 rounded border px-3 py-1.5 transition-colors duration-state-change"
-						>
-							+ Add Account
+							<span>Lihat Ledger</span>
+							<span class="material-symbols-outlined text-[15px]" aria-hidden="true">north_east</span>
 						</button>
 					</div>
-				</div>
+				</article>
 
-				<div class="grid grid-cols-1 items-stretch gap-gutter-md sm:grid-cols-2 xl:grid-cols-4">
-					<!-- Dark Combined Balance Card -->
-					<article class="bg-on-surface text-surface-card border-on-surface flex h-full flex-col justify-between gap-gutter-md rounded-md border p-gutter-md">
-						<header class="flex items-center justify-between">
-							<span class="font-label text-label-md text-surface-card/80">Combined Balance</span>
-							<span class="material-symbols-outlined text-accent-orange text-[20px]" aria-hidden="true">
-								account_balance
-							</span>
-						</header>
-						<div class="flex flex-col gap-gutter-xs">
-							<p class="font-headline text-headline-lg text-surface-card tabular-nums">
-								{formatMoney(combinedBalance, data.currency)}
-							</p>
-							<p class="font-body text-body-sm text-surface-card/70">
-								Across {walletBreakdown.length} {walletBreakdown.length === 1 ? 'account' : 'accounts'}
-							</p>
-						</div>
-					</article>
-
-					<!-- Top 3 Interactive Wallet Cards -->
-					{#each previewWallets as wallet (wallet.id)}
-						<button
-							type="button"
-							onclick={() => filterByWalletAndOpenLedger(wallet.name)}
-							class="bg-surface-card border-outline hover:border-outline-variant flex h-full cursor-pointer flex-col justify-between gap-gutter-md rounded-md border p-gutter-md text-left transition-colors duration-state-change"
-						>
-							<header class="flex w-full items-center justify-between gap-gutter-sm">
-								<span class="font-title text-title-md text-on-surface truncate">{wallet.name}</span>
-								<span
-									class="size-2.5 shrink-0 rounded-full"
-									style={`background:${wallet.color || '#E9762B'}`}
-									aria-hidden="true"
-								></span>
-							</header>
-							<div class="flex flex-col gap-gutter-xs">
-								<p
-									class={cn(
-										'font-headline text-headline-md tabular-nums',
-										wallet.balance < 0 ? 'text-on-expense-container' : 'text-on-surface'
-									)}
-								>
-									{formatMoney(wallet.balance, data.currency)}
-								</p>
-								<p class="font-body text-body-sm text-on-surface-variant tabular-nums">
-									{wallet.count} {wallet.count === 1 ? 'tx' : 'txs'} · Filter
-								</p>
-							</div>
-						</button>
-					{/each}
-				</div>
-			</section>
-
-			<!-- Section 3: Analytics Row (60% / 40% -> 7 / 5 cols) -->
-			<section aria-label="Cashflow and Expense Analytics" class="grid grid-cols-1 items-stretch gap-gutter-md lg:grid-cols-12">
-				<div class="lg:col-span-7">
-					<CashflowChart
-						transactions={data.transactions}
-						month={data.month}
-						months={data.monthTotals}
-						currency={data.currency}
-					/>
-				</div>
-
-				<div class="lg:col-span-5">
+				<div class="col-span-12 lg:col-span-7">
 					<CategoryDonut
 						items={data.categorySpending}
 						currency={data.currency}
@@ -1047,231 +1161,205 @@
 					/>
 				</div>
 			</section>
-
-			<!-- Section 4: Budgets & Financial Pulse Row (50% / 50%) -->
-			<section aria-label="Monthly Budgets and Financial Pulse" class="grid grid-cols-1 items-stretch gap-gutter-md lg:grid-cols-2">
-				<BudgetPanel
-					budgets={data.budgets}
-					currency={data.currency}
-					onmanage={() => navigateView('budgets', { scrollTo: '#categories_and_budgets' })}
-				/>
-
-				<!-- Financial Pulse (2x2 stat tiles) -->
-				<article class="bg-surface-card border-outline flex h-full flex-col justify-between gap-gutter-md rounded-md border p-gutter-md">
-					<header class="flex items-center justify-between">
-						<h2 class="font-title text-title-lg text-on-surface">Financial Pulse</h2>
-						<span class="font-body text-body-sm text-on-surface-variant">
-							{shortMonthText} insights
-						</span>
-					</header>
-
-					<div class="grid flex-1 grid-cols-2 gap-gutter-sm">
-						<div class="bg-surface-container-high border-outline flex flex-col justify-between gap-1 rounded border p-3 sm:p-3.5">
-							<span class="font-label text-label-sm text-on-surface-variant">Largest Expense</span>
-							{#if largestExpense}
-								<p class="font-headline text-headline-md text-on-surface tabular-nums">
-									{formatMoney(largestExpense.amount, data.currency)}
-								</p>
-								<span class="font-body text-body-sm text-on-surface-variant truncate">
-									{largestExpense.description}
-								</span>
-							{:else}
-								<p class="font-headline text-headline-md text-on-surface">—</p>
-								<span class="font-body text-body-sm text-on-surface-variant">No recorded outflow</span>
-							{/if}
-						</div>
-
-						<div class="bg-surface-container-high border-outline flex flex-col justify-between gap-1 rounded border p-3 sm:p-3.5">
-							<span class="font-label text-label-sm text-on-surface-variant">Average Expense</span>
-							<p class="font-headline text-headline-md text-on-surface tabular-nums">
-								{formatMoney(averageExpense, data.currency)}
+		{:else if activeView === 'transactions'}
+			<!-- TRANSACTIONS LEDGER VIEW (Stitch Editorial Pop) -->
+			<div class="gap-gutter-md grid grid-cols-12 items-stretch">
+				<div class="gap-gutter-md col-span-12 flex flex-col justify-between lg:col-span-7">
+					<div class="flex flex-wrap items-end justify-between gap-3">
+						<div>
+							<h1 class="font-display text-headline-lg sm:text-display-md text-on-surface uppercase">
+								TRANSACTIONS LEDGER
+							</h1>
+							<p class="font-body text-body-md text-on-surface-variant">
+								Cari cepat dengan shortcut <code class="bg-surface-card rounded px-1.5 py-0.5 font-mono text-xs">/</code>, filter per dompet, atau ekspor CSV.
 							</p>
-							<span class="font-body text-body-sm text-on-surface-variant">
-								Across {expenses.length} {expenses.length === 1 ? 'transaction' : 'transactions'}
-							</span>
 						</div>
 
-						<div class="bg-surface-container-high border-outline flex flex-col justify-between gap-1 rounded border p-3 sm:p-3.5">
-							<span class="font-label text-label-sm text-on-surface-variant">Top Category</span>
-							{#if mostUsedCategory}
-								<p class="font-headline text-headline-md text-on-surface truncate">
-									{mostUsedCategory.category.emoji} {mostUsedCategory.category.name}
-								</p>
-								<span class="font-body text-body-sm text-on-surface-variant tabular-nums">
-									{mostUsedCategory.count} times ({formatMoney(mostUsedCategory.amount, data.currency)})
-								</span>
-							{:else}
-								<p class="font-headline text-headline-md text-on-surface">—</p>
-								<span class="font-body text-body-sm text-on-surface-variant">No category activity</span>
-							{/if}
-						</div>
-
-						<div class="bg-surface-container-high border-outline flex flex-col justify-between gap-1 rounded border p-3 sm:p-3.5">
-							<span class="font-label text-label-sm text-on-surface-variant">Daily Average Burn</span>
-							<p class="font-headline text-headline-md text-on-surface tabular-nums">
-								{formatMoney(data.summary.dailyAverage, data.currency)}
-							</p>
-							<span class="font-body text-body-sm text-on-surface-variant">Per day this month</span>
+						<div class="flex flex-wrap items-center gap-2">
+							<button
+								type="button"
+								onclick={() => openCreate('transfer')}
+								class="bg-surface-card border-outline-variant font-label text-label-sm text-on-surface hover:bg-surface-container inline-flex cursor-pointer items-center gap-1 rounded-full border px-3.5 py-1.5 transition-colors"
+							>
+								<span class="material-symbols-outlined text-[16px]" aria-hidden="true">swap_horiz</span>
+								<span>Transfer</span>
+							</button>
+							<button
+								type="button"
+								onclick={() => openCreate('expense')}
+								class="bg-primary text-on-primary font-label text-label-sm inline-flex cursor-pointer items-center gap-1 rounded-full px-3.5 py-1.5 transition-opacity hover:opacity-90"
+							>
+								<span class="material-symbols-outlined text-[16px]" aria-hidden="true">add</span>
+								<span>Add Entry</span>
+							</button>
 						</div>
 					</div>
-				</article>
-			</section>
-		{:else if activeView === 'transactions'}
-			<!-- TRANSACTIONS LEDGER VIEW (Stitch Screen 2) -->
-			<div class="flex flex-wrap items-center justify-between gap-gutter-md">
-				<div class="flex items-center gap-gutter-sm">
-					<h1 class="font-headline text-headline-lg text-on-surface">Transactions</h1>
-					<span
-						role="status"
-						class="bg-surface-container-low border-outline font-label text-label-sm text-on-surface-variant inline-flex items-center rounded-full border px-2.5 py-0.5 tabular-nums"
-					>
-						{filteredTransactions.length} {filteredTransactions.length === 1 ? 'entry' : 'entries'}
-					</span>
+
+					<!-- Search & Export Floating Pill Bar -->
+					<div class="bg-surface-card border-outline-variant gap-gutter-sm flex flex-wrap items-center rounded-full border p-2">
+						<label class="gap-gutter-sm flex min-w-[200px] flex-1 items-center px-3">
+							<span class="sr-only">Search transactions</span>
+							<span class="material-symbols-outlined text-on-surface-variant text-[20px]" aria-hidden="true">
+								search
+							</span>
+							<input
+								bind:this={searchInputEl}
+								bind:value={search}
+								oninput={() => (page = 1)}
+								type="search"
+								placeholder="Search merchant, note, or category..."
+								class="text-on-surface placeholder:text-on-surface-variant font-body text-body-md w-full border-0 bg-transparent p-0 outline-none focus:ring-0"
+							/>
+							{#if search}
+								<button
+									type="button"
+									onclick={() => {
+										search = '';
+										page = 1;
+									}}
+									aria-label="Clear search"
+									class="text-on-surface-variant hover:text-on-surface cursor-pointer"
+								>
+									<span class="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
+								</button>
+							{:else}
+								<span class="bg-ink text-on-surface-variant font-mono text-mono-sm hidden rounded-full px-2 py-0.5 sm:inline-block">
+									/
+								</span>
+							{/if}
+						</label>
+
+						<button
+							type="button"
+							onclick={exportToCSV}
+							disabled={filteredTransactions.length === 0}
+							class="bg-marigold text-on-marigold font-label text-label-sm inline-flex cursor-pointer items-center gap-1 rounded-full px-3.5 py-1.5 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
+						>
+							<span class="material-symbols-outlined text-[15px]" aria-hidden="true">download</span>
+							<span>Export CSV</span>
+						</button>
+					</div>
 				</div>
 
-				<div class="flex flex-wrap items-center gap-gutter-sm">
+				<!-- Coral Quick Import Card -->
+				<div class="bg-coral text-on-coral gap-gutter-md col-span-12 flex items-center justify-between rounded-xl p-6 lg:col-span-5">
+					<div class="gap-gutter-xs flex flex-col">
+						<span class="bg-ink text-on-surface font-label text-label-sm self-start rounded-full px-2.5 py-0.5 uppercase">
+							E-STATEMENT
+						</span>
+						<h2 class="font-headline text-headline-lg mt-1 uppercase">IMPORT MUTASI PDF / CSV</h2>
+						<p class="font-body text-body-sm text-ink/85">
+							Krom, BCA, Mandiri, BNI, BRI, Jago &amp; SeaBank otomatis terbaca.
+						</p>
+					</div>
 					<button
 						type="button"
 						onclick={() => (showStatementImport = true)}
-						class="bg-surface-card border-outline font-label text-label-md text-on-surface hover:bg-surface-container-low inline-flex cursor-pointer items-center gap-1.5 rounded border px-3 py-2 transition-colors duration-state-change"
+						aria-label="Unggah mutasi e-Statement"
+						class="bg-ink text-on-surface flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-full transition-transform hover:scale-105"
 					>
-						<span class="material-symbols-outlined text-on-surface-variant text-[18px]" aria-hidden="true">
-							description
-						</span>
-						<span>Import e-Statement (PDF/CSV)</span>
-					</button>
-					<button
-						type="button"
-						onclick={exportToCSV}
-						disabled={filteredTransactions.length === 0}
-						class="bg-surface-card border-outline font-label text-label-md text-on-surface hover:bg-surface-container-low inline-flex cursor-pointer items-center gap-1.5 rounded border px-3 py-2 transition-colors duration-state-change disabled:opacity-45"
-					>
-						<span class="material-symbols-outlined text-on-surface-variant text-[18px]" aria-hidden="true">
-							download
-						</span>
-						<span>Export CSV</span>
-					</button>
-					<button
-						type="button"
-						onclick={() => openCreate('transfer')}
-						class="bg-surface-card border-outline font-label text-label-md text-on-surface hover:bg-surface-container-low inline-flex cursor-pointer items-center gap-1.5 rounded border px-3 py-2 transition-colors duration-state-change"
-					>
-						<span class="material-symbols-outlined text-on-surface-variant text-[18px]" aria-hidden="true">
-							swap_horiz
-						</span>
-						<span>Transfer</span>
-					</button>
-					<button
-						type="button"
-						onclick={() => openCreate('expense')}
-						class="bg-primary text-on-primary font-label text-label-md inline-flex cursor-pointer items-center gap-1.5 rounded px-3.5 py-2 transition-opacity duration-state-change hover:opacity-95"
-					>
-						<span class="material-symbols-outlined text-[18px]" aria-hidden="true">add</span>
-						<span>Add Entry</span>
+						<span class="material-symbols-outlined text-[22px]" aria-hidden="true">upload_file</span>
 					</button>
 				</div>
 			</div>
 
-			<!-- Filter Toolbar Card -->
+			<!-- Filter Pills & Select Controls -->
 			<section
 				aria-label="Transaction Filters"
-				class="bg-surface-card border-outline flex flex-wrap items-center justify-between gap-gutter-sm rounded-md border p-3"
+				class="bg-surface-card border-outline-variant gap-gutter-sm flex flex-wrap items-center justify-between rounded-xl border p-3.5"
 			>
-				<label class="min-w-[220px] flex-1">
-					<span class="sr-only">Search transactions</span>
-					<div class="relative flex items-center">
-						<span class="text-on-surface-variant pointer-events-none absolute left-3" aria-hidden="true">
-							<span class="material-symbols-outlined text-[18px]">search</span>
-						</span>
-						<input
-							bind:this={searchInputEl}
-							bind:value={search}
-							oninput={() => (page = 1)}
-							type="search"
-							placeholder="Search description, account, note..."
-							class="border-outline bg-surface-container-high font-body text-body-md text-on-surface placeholder:text-on-surface-variant/60 focus:border-primary focus:bg-surface-card focus:ring-primary w-full rounded border py-1.5 pr-10 pl-9 outline-none focus:ring-1"
-						/>
-						{#if search}
-							<button
-								type="button"
-								onclick={() => {
-									search = '';
-									page = 1;
-								}}
-								aria-label="Clear search"
-								class="text-on-surface-variant hover:text-on-surface absolute right-2.5 cursor-pointer"
-							>
-								<span class="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
-							</button>
-						{:else}
-							<span class="bg-surface-card border-outline font-mono text-mono-sm text-on-surface-variant pointer-events-none absolute right-2.5 hidden rounded border px-1.5 py-0.5 sm:inline-block">
-								/
-							</span>
-						{/if}
-					</div>
-				</label>
+				<div
+					class="bg-ink inline-flex flex-wrap items-center gap-1 rounded-full p-1"
+					role="tablist"
+					aria-label="Transaction type"
+				>
+					{#each [
+						{ id: 'all', label: 'All' },
+						{ id: 'expense', label: 'Expenses' },
+						{ id: 'income', label: 'Income' },
+						{ id: 'transfer', label: 'Transfers' }
+					] as tab (tab.id)}
+						<button
+							type="button"
+							role="tab"
+							aria-selected={filterType === tab.id}
+							onclick={() => {
+								filterType = tab.id as typeof filterType;
+								page = 1;
+							}}
+							class={cn(
+								'font-label text-label-sm cursor-pointer rounded-full px-3.5 py-1 transition-colors',
+								filterType === tab.id
+									? 'bg-pill-white text-on-pill-white'
+									: 'text-on-surface-variant hover:text-on-surface'
+							)}
+						>
+							{tab.label}
+						</button>
+					{/each}
+				</div>
 
-				<div class="flex flex-wrap items-center gap-gutter-sm">
-					<div
-						class="bg-surface-container-low border-outline inline-flex items-center rounded border p-0.5"
-						role="tablist"
-						aria-label="Transaction type"
+				<div class="gap-gutter-sm flex flex-wrap items-center">
+					<Select.Root
+						type="single"
+						value={filterCategory}
+						onValueChange={(v) => {
+							filterCategory = v;
+							page = 1;
+						}}
 					>
-						{#each [
-							{ id: 'all', label: 'All' },
-							{ id: 'expense', label: 'Expenses' },
-							{ id: 'income', label: 'Income' },
-							{ id: 'transfer', label: 'Transfers' }
-						] as tab (tab.id)}
-							<button
-								type="button"
-								role="tab"
-								aria-selected={filterType === tab.id}
-								onclick={() => {
-									filterType = tab.id as typeof filterType;
-									page = 1;
-								}}
-								class={cn(
-									'font-label text-label-sm cursor-pointer rounded-sm px-3 py-1 transition-colors',
-									filterType === tab.id
-										? 'bg-surface-card text-on-surface shadow-xs'
-										: 'text-on-surface-variant hover:text-on-surface'
-								)}
-							>
-								{tab.label}
-							</button>
-						{/each}
-					</div>
+						<Select.Trigger
+							aria-label="Filter by category"
+							size="sm"
+							class="w-auto min-w-[150px] max-w-[220px] px-3.5 py-1.5"
+						>
+							{#if filterCategory === 'all'}
+								All Categories
+							{:else}
+								{@const activeFilterCategory = data.categories.find((cat) => cat.id === filterCategory)}
+								{activeFilterCategory
+									? `${activeFilterCategory.emoji} ${activeFilterCategory.name}`
+									: 'All Categories'}
+							{/if}
+						</Select.Trigger>
+						<Select.Content align="start">
+							<Select.Item value="all" label="All Categories">All Categories</Select.Item>
+							{#each data.categories as cat (cat.id)}
+								<Select.Item value={cat.id} label={`${cat.emoji} ${cat.name}`}>
+									{cat.emoji} {cat.name}
+								</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
 
-					<select
-						aria-label="Filter by category"
-						bind:value={filterCategory}
-						onchange={() => (page = 1)}
-						class="border-outline bg-surface-card font-label text-label-md text-on-surface focus:border-primary focus:ring-primary rounded border px-3 py-1.5 outline-none focus:ring-1"
+					<Select.Root
+						type="single"
+						value={filterAccount}
+						onValueChange={(v) => {
+							filterAccount = v;
+							page = 1;
+						}}
 					>
-						<option value="all">All Categories</option>
-						{#each data.categories as cat (cat.id)}
-							<option value={cat.id}>{cat.emoji} {cat.name}</option>
-						{/each}
-					</select>
-
-					<select
-						aria-label="Filter by account"
-						bind:value={filterAccount}
-						onchange={() => (page = 1)}
-						class="border-outline bg-surface-card font-label text-label-md text-on-surface focus:border-primary focus:ring-primary rounded border px-3 py-1.5 outline-none focus:ring-1"
-					>
-						<option value="all">All Accounts</option>
-						{#each walletBreakdown as w (w.id)}
-							<option value={w.name}>{w.name}</option>
-						{/each}
-					</select>
+						<Select.Trigger
+							aria-label="Filter by account"
+							size="sm"
+							class="w-auto min-w-[135px] max-w-[210px] px-3.5 py-1.5"
+						>
+							{filterAccount === 'all' ? 'All Wallets' : filterAccount}
+						</Select.Trigger>
+						<Select.Content align="start">
+							<Select.Item value="all" label="All Wallets">All Wallets</Select.Item>
+							{#each walletBreakdown as w (w.id)}
+								<Select.Item value={w.name} label={w.name}>{w.name}</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
 
 					{#if hasFilters}
 						<button
 							type="button"
 							onclick={clearFilters}
-							class="font-label text-label-sm text-primary cursor-pointer px-2 py-1 hover:underline"
+							class="bg-coral text-on-coral font-label text-label-sm cursor-pointer rounded-full px-3 py-1.5 transition-opacity hover:opacity-90"
 						>
 							Reset
 						</button>
@@ -1280,61 +1368,56 @@
 			</section>
 
 			<!-- Summary Strip -->
-			<div class="bg-surface-card border-outline flex flex-wrap items-center justify-between gap-gutter-sm rounded-md border px-gutter-md py-2.5">
-				<p class="font-body text-body-md text-on-surface-variant tabular-nums">
-					<strong class="text-on-surface font-semibold">
-						{filteredStats.count} {filteredStats.count === 1 ? 'entry' : 'entries'}
-					</strong>
-					· Inflow:
-					<strong class="text-on-income-container font-semibold">
+			<div class="bg-surface-card border-outline-variant gap-gutter-sm flex flex-wrap items-center justify-between rounded-xl border px-5 py-3">
+				<div class="flex flex-wrap items-center gap-2">
+					<span class="font-label text-label-sm text-on-surface-variant uppercase">
+						{filteredStats.count} {filteredStats.count === 1 ? 'TRANSACTION' : 'TRANSACTIONS'} · {data.monthLabel.toUpperCase()}
+					</span>
+					<span class="bg-income text-on-income font-mono text-mono-sm rounded-full px-2.5 py-0.5 tabular-nums">
 						+{formatMoney(filteredStats.income, data.currency)}
-					</strong>
-					· Outflow:
-					<strong class="text-on-expense-container font-semibold">
+					</span>
+					<span class="bg-coral text-on-coral font-mono text-mono-sm rounded-full px-2.5 py-0.5 tabular-nums">
 						-{formatMoney(filteredStats.expense, data.currency)}
-					</strong>
-					· Net:
-					<strong
-						class={cn(
-							'font-semibold',
-							filteredStats.net < 0 ? 'text-on-expense-container' : 'text-on-surface'
-						)}
-					>
-						{filteredStats.net >= 0 ? '+' : ''}{formatMoney(filteredStats.net, data.currency)}
-					</strong>
-				</p>
-				<span class="font-body text-body-sm text-on-surface-variant">{sortSummaryLabel}</span>
+					</span>
+				</div>
+
+				<div class="flex items-center gap-2">
+					<span class="font-body text-body-sm text-on-surface-variant hidden sm:inline">{sortSummaryLabel}</span>
+					<span class="bg-sky-mint text-on-sky-mint font-mono text-mono-md rounded-full px-3 py-1 tabular-nums">
+						Net: {filteredStats.net >= 0 ? '+' : ''}{formatMoney(filteredStats.net, data.currency)}
+					</span>
+				</div>
 			</div>
 
-			<!-- Ledger Table or Empty State -->
+			<!-- Ledger Bento List or Empty State -->
 			{#if sortedTransactions.length === 0}
-				<div class="bg-surface-card border-outline flex flex-col items-center justify-center gap-2 rounded-md border border-dashed px-4 py-14 text-center">
-					<span class="material-symbols-outlined text-on-surface-variant text-[30px]" aria-hidden="true">
-						receipt_long
+				<div class="bg-surface-card border-outline-variant flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-4 py-14 text-center">
+					<span class="bg-coral text-on-coral flex size-12 items-center justify-center rounded-full">
+						<span class="material-symbols-outlined text-[24px]" aria-hidden="true">receipt_long</span>
 					</span>
 					{#if data.monthTransactions.length === 0}
-						<h2 class="font-title text-title-md text-on-surface">
-							No transactions recorded for {data.monthLabel}
+						<h2 class="font-headline text-headline-md text-on-surface uppercase">
+							Belum ada transaksi untuk {data.monthLabel}
 						</h2>
-						<p class="font-body text-body-sm text-on-surface-variant">
-							Log your first income or expense entry, or import a bank e-Statement.
+						<p class="font-body text-body-sm text-on-surface-variant max-w-sm">
+							Catat pemasukan atau pengeluaran pertamamu, atau impor mutasi e-Statement bank.
 						</p>
 						<button
 							type="button"
 							onclick={() => openCreate('expense')}
-							class="bg-primary text-on-primary font-label text-label-md mt-2 cursor-pointer rounded px-4 py-2 hover:opacity-95"
+							class="bg-primary text-on-primary font-label text-label-lg mt-1 cursor-pointer rounded-full px-5 py-2.5 transition-opacity hover:opacity-90"
 						>
 							+ Record Transaction
 						</button>
 					{:else}
-						<h2 class="font-title text-title-md text-on-surface">No matching transactions</h2>
+						<h2 class="font-headline text-headline-md text-on-surface uppercase">Tidak ada transaksi cocok</h2>
 						<p class="font-body text-body-sm text-on-surface-variant">
-							Try adjusting your search query or clearing active filters.
+							Coba ubah kata kunci pencarian atau reset filter yang aktif.
 						</p>
 						<button
 							type="button"
 							onclick={clearFilters}
-							class="bg-surface-card border-outline font-label text-label-sm text-on-surface hover:bg-surface-container-low mt-2 cursor-pointer rounded border px-3 py-1.5"
+							class="bg-pill-white text-on-pill-white font-label text-label-sm mt-1 cursor-pointer rounded-full px-4 py-2"
 						>
 							Clear Filters
 						</button>
@@ -1371,7 +1454,7 @@
 				/>
 			{/if}
 		{:else if activeView === 'accounts' || activeView === 'budgets'}
-			<!-- ACCOUNTS, CATEGORIES & MONTHLY BUDGETS VIEW (Stitch Screen 3) -->
+			<!-- ACCOUNTS, CATEGORIES & MONTHLY BUDGETS VIEW -->
 			<AccountsBudgetsView
 				wallets={walletBreakdown}
 				categories={data.categories}
@@ -1398,7 +1481,7 @@
 				onnotice={showToast}
 			/>
 		{:else if activeView === 'split'}
-			<!-- BELI RAME-RAME WORKSPACE VIEW (Stitch Screen 4) -->
+			<!-- BELI RAME-RAME WORKSPACE VIEW -->
 			<SplitBillWorkspace
 				splitBills={data.splitBills}
 				categories={data.categories}
@@ -1411,6 +1494,88 @@
 			/>
 		{/if}
 	</main>
+
+	<!-- Floating Action Button (Quick New Transaction Entry) -->
+	{#if !showTransactionModal && !showCategories && !showWalletModal && !showStatementImport && !showSettings && !showLogoutConfirm && !deletingTransaction}
+		<button
+			type="button"
+			onclick={() => openCreate('expense')}
+			aria-label="Tambah transaksi baru"
+			title="Tambah transaksi baru"
+			class="bg-coral text-on-coral border-ink fixed right-4 bottom-24 z-35 flex size-14 cursor-pointer items-center justify-center rounded-full border-2 shadow-2xl transition-transform duration-150 hover:scale-105 active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none md:hidden"
+		>
+			<span class="material-symbols-outlined text-[26px]" aria-hidden="true">add</span>
+		</button>
+	{/if}
+
+	<!-- Stitch Mobile Signature Floating Bottom Pill Nav (<md) -->
+	<nav
+		aria-label="Mobile Navigation"
+		class="bg-surface-card/95 border-outline-variant fixed bottom-4 left-1/2 z-40 flex w-[min(358px,calc(100vw-2rem))] -translate-x-1/2 items-center justify-between rounded-full border px-3 py-2 shadow-2xl backdrop-blur-md md:hidden"
+	>
+		<button
+			type="button"
+			aria-label="Overview"
+			aria-current={activeView === 'overview' ? 'page' : undefined}
+			onclick={() => navigateView('overview')}
+			class={cn(
+				'flex size-11 cursor-pointer items-center justify-center rounded-full transition-colors',
+				activeView === 'overview'
+					? 'bg-pill-white text-on-pill-white'
+					: 'text-on-surface-variant hover:text-on-surface'
+			)}
+		>
+			<span class="material-symbols-outlined text-[20px]" aria-hidden="true">home</span>
+		</button>
+		<button
+			type="button"
+			aria-label="Transactions"
+			aria-current={activeView === 'transactions' ? 'page' : undefined}
+			onclick={() => navigateView('transactions')}
+			class={cn(
+				'flex size-11 cursor-pointer items-center justify-center rounded-full transition-colors',
+				activeView === 'transactions'
+					? 'bg-pill-white text-on-pill-white'
+					: 'text-on-surface-variant hover:text-on-surface'
+			)}
+		>
+			<span class="material-symbols-outlined text-[20px]" aria-hidden="true">receipt_long</span>
+		</button>
+		<button
+			type="button"
+			aria-label="Accounts & Budgets"
+			aria-current={activeView === 'accounts' || activeView === 'budgets' ? 'page' : undefined}
+			onclick={() => navigateView('accounts')}
+			class={cn(
+				'flex size-11 cursor-pointer items-center justify-center rounded-full transition-colors',
+				activeView === 'accounts' || activeView === 'budgets'
+					? 'bg-pill-white text-on-pill-white'
+					: 'text-on-surface-variant hover:text-on-surface'
+			)}
+		>
+			<span class="material-symbols-outlined text-[20px]" aria-hidden="true">account_balance_wallet</span>
+		</button>
+		<button
+			type="button"
+			aria-label="Beli Rame-rame"
+			aria-current={activeView === 'split' ? 'page' : undefined}
+			onclick={() => navigateView('split', { splitTab: 'calculator' })}
+			class={cn(
+				'relative flex size-11 cursor-pointer items-center justify-center rounded-full transition-colors',
+				activeView === 'split'
+					? 'bg-pill-white text-on-pill-white'
+					: 'text-on-surface-variant hover:text-on-surface'
+			)}
+		>
+			<span class="material-symbols-outlined text-[20px]" aria-hidden="true">group</span>
+			{#if splitBillOverview.openCount > 0}
+				<span
+					class="bg-coral border-surface-card absolute top-2 right-2 size-2 rounded-full border"
+					aria-hidden="true"
+				></span>
+			{/if}
+		</button>
+	</nav>
 </div>
 
 <!-- Transaction Entry / Edit Modal -->
@@ -1466,24 +1631,23 @@
 <!-- Toast Notification -->
 {#if toastNotice}
 	<div
-		class="bg-income-container border-income/30 text-on-income-container fixed bottom-6 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-md border px-4 py-3 text-sm shadow-lg"
+		class="bg-income text-on-income fixed bottom-6 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-full px-5 py-3 text-sm font-semibold shadow-2xl"
 		role="status"
 	>
 		<span class="material-symbols-outlined shrink-0 text-[18px]" aria-hidden="true">check_circle</span>
-		<p class="font-body text-body-sm flex-1 font-medium">{toastNotice}</p>
-		<Button
-			variant="ghost"
-			size="icon-sm"
-			class="text-on-income-container size-6"
+		<p class="font-body text-body-sm flex-1 font-semibold">{toastNotice}</p>
+		<button
+			type="button"
 			aria-label="Dismiss notice"
 			onclick={() => (toastNotice = null)}
+			class="bg-ink text-on-surface inline-flex size-6 cursor-pointer items-center justify-center rounded-full"
 		>
-			<span class="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
-		</Button>
+			<span class="material-symbols-outlined text-[15px]" aria-hidden="true">close</span>
+		</button>
 	</div>
 {/if}
 
-<!-- Settings & Sync Right Slide-Over Drawer (Stitch Screen 5) -->
+<!-- Settings & Sync Right Slide-Over Drawer -->
 <SettingsSheet
 	open={showSettings}
 	user={data.user}

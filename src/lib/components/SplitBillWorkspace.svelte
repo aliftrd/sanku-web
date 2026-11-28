@@ -21,6 +21,7 @@
 		SPLIT_COLORS
 	} from '#lib/split-bill.ts';
 	import { cn } from '#lib/utils.ts';
+	import * as Select from '#lib/components/ui/select/index.ts';
 
 	const PAYMENT_STORAGE_KEY = 'sanku_split_payment_info';
 
@@ -105,7 +106,6 @@
 		}
 	]);
 
-	// Structured multi-discount & fee rows matching Stitch Screen 4
 	let discounts = $state<SplitDiscount[]>([
 		{
 			id: makeId('disc'),
@@ -167,11 +167,9 @@
 	let categoryId = $state(untrack(() => defaultDiningCategoryId));
 	let account = $state(untrack(() => wallets[0]?.name ?? ''));
 
-	// Auto-calculate discount from final paid total
 	let autoDiscountEnabled = $state(false);
 	let autoPaidDisplay = $state('');
 
-	// UI state
 	let saving = $state(false);
 	let busyToggleKey = $state<string | null>(null);
 	let deletingBillId = $state<string | null>(null);
@@ -217,6 +215,13 @@
 	});
 
 	const isZeroDecimal = $derived(calc.decimals === 0);
+
+	const paidFriendsCount = $derived(
+		participants.filter((p) => !p.isMe && p.paid).length
+	);
+	const unpaidFriendsCount = $derived(
+		participants.filter((p) => !p.isMe && !p.paid).length
+	);
 
 	const serializedPayload = $derived(
 		JSON.stringify({
@@ -545,148 +550,192 @@
 	}
 </script>
 
-<div class="flex flex-col gap-gutter-md">
-	<!-- Workspace Header -->
-	<div class="flex flex-wrap items-center justify-between gap-gutter-md">
-		<div>
-			<div class="flex items-center gap-2">
-				<h1 class="font-headline text-headline-lg text-on-surface">
-					Beli Rame-rame (Split Bill)
-				</h1>
-				{#if editingId}
-					<span class="bg-primary-container text-on-primary-container font-label text-label-sm rounded-full px-2.5 py-0.5">
-						Editing
+<div class="gap-gutter-lg flex flex-col">
+	<!-- Top Banner with Stitch Editorial Illustration -->
+	<div class="gap-gutter-md grid grid-cols-12 items-stretch">
+		<div class="bg-coral text-on-coral gap-gutter-md col-span-12 flex flex-col justify-between rounded-xl p-6 lg:col-span-7">
+			<div class="flex flex-wrap items-center justify-between gap-2">
+				<div class="flex flex-wrap items-center gap-2">
+					<span class="bg-ink text-on-surface font-label text-label-sm rounded-full px-3 py-1 uppercase">
+						PROPORTIONAL SPLIT
 					</span>
-				{/if}
-			</div>
-			<p class="font-body text-body-md text-on-surface-variant">
-				Proportional group discount, tax, and delivery calculator synced to your Sanku ledger.
-			</p>
-		</div>
+					{#if editingId}
+						<span class="bg-marigold text-on-marigold font-label text-label-sm rounded-full px-3 py-1 uppercase">
+							EDITING SESSION
+						</span>
+					{/if}
+				</div>
 
-		<div class="flex flex-wrap items-center gap-gutter-sm">
-			{#if activePanel === 'calculator'}
-				<div
-					class="bg-surface-container-low border-outline inline-flex items-center rounded border p-0.5"
-					role="tablist"
-					aria-label="Split mode"
-				>
+				<div class="flex flex-wrap items-center gap-1.5">
+					{#if activePanel === 'calculator'}
+						<div class="bg-ink inline-flex items-center rounded-full p-1" role="tablist" aria-label="Split mode">
+							<button
+								type="button"
+								role="tab"
+								aria-selected={splitMode === 'itemized'}
+								onclick={() => switchSplitMode('itemized')}
+								class={cn(
+									'font-label text-label-sm cursor-pointer rounded-full px-3 py-1 transition-colors',
+									splitMode === 'itemized'
+										? 'bg-pill-white text-on-pill-white'
+										: 'text-on-surface-variant hover:text-on-surface'
+								)}
+							>
+								Itemized
+							</button>
+							<button
+								type="button"
+								role="tab"
+								aria-selected={splitMode === 'equal'}
+								onclick={() => switchSplitMode('equal')}
+								class={cn(
+									'font-label text-label-sm cursor-pointer rounded-full px-3 py-1 transition-colors',
+									splitMode === 'equal'
+										? 'bg-pill-white text-on-pill-white'
+										: 'text-on-surface-variant hover:text-on-surface'
+								)}
+							>
+								Equal
+							</button>
+						</div>
+					{/if}
+
 					<button
 						type="button"
-						role="tab"
-						aria-selected={splitMode === 'itemized'}
-						onclick={() => switchSplitMode('itemized')}
-						class={cn(
-							'font-label text-label-sm cursor-pointer rounded-sm px-3 py-1.5 transition-colors',
-							splitMode === 'itemized'
-								? 'bg-surface-card text-on-surface shadow-xs'
-								: 'text-on-surface-variant hover:text-on-surface'
-						)}
+						onclick={() => (activePanel = activePanel === 'calculator' ? 'history' : 'calculator')}
+						class="bg-pill-white text-on-pill-white font-label text-label-sm inline-flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-1.5 transition-opacity hover:opacity-90"
 					>
-						Itemized per Menu
-					</button>
-					<button
-						type="button"
-						role="tab"
-						aria-selected={splitMode === 'equal'}
-						onclick={() => switchSplitMode('equal')}
-						class={cn(
-							'font-label text-label-sm cursor-pointer rounded-sm px-3 py-1.5 transition-colors',
-							splitMode === 'equal'
-								? 'bg-surface-card text-on-surface shadow-xs'
-								: 'text-on-surface-variant hover:text-on-surface'
-						)}
-					>
-						Quick Equal Split
+						<span class="material-symbols-outlined text-[16px]" aria-hidden="true">
+							{activePanel === 'history' ? 'calculate' : 'history'}
+						</span>
+						<span>{activePanel === 'history' ? 'Calculator' : 'History'}</span>
+						{#if openBillsCount > 0}
+							<span class="bg-marigold text-on-marigold rounded-full px-1.5 py-0 text-[10px] font-bold tabular-nums">
+								{openBillsCount}
+							</span>
+						{/if}
 					</button>
 				</div>
-			{/if}
+			</div>
 
-			<button
-				type="button"
-				onclick={() => (activePanel = activePanel === 'calculator' ? 'history' : 'calculator')}
-				class={cn(
-					'border-outline font-label text-label-md inline-flex cursor-pointer items-center gap-1.5 rounded border px-3 py-1.5 transition-colors duration-state-change',
-					activePanel === 'history'
-						? 'bg-primary-container text-on-primary-container border-accent-orange/40'
-						: 'bg-surface-card text-on-surface hover:bg-surface-container-low'
-				)}
-			>
-				<span class="material-symbols-outlined text-[18px]" aria-hidden="true">
-					{activePanel === 'history' ? 'calculate' : 'history'}
-				</span>
-				<span>
-					{activePanel === 'history' ? 'Back to Calculator' : 'Saved History & Settlement Checklist'}
-				</span>
-				{#if openBillsCount > 0}
-					<span class="bg-warning-container text-on-warning-container font-label text-label-sm rounded-full px-2 py-0 tabular-nums">
-						{openBillsCount}
-					</span>
+			<div>
+				<h1 class="font-display text-headline-lg sm:text-display-md uppercase">
+					BELI RAME-RAME{title.trim() ? ` · ${title.trim()}` : ''}
+				</h1>
+				<p class="font-body text-body-md text-ink/85 mt-1">
+					Multi-diskon &amp; ongkir dibagi proporsional sesuai pesanan masing-masing.
+				</p>
+			</div>
+
+			<div class="gap-gutter-md border-ink/15 flex flex-wrap items-center border-t pt-3">
+				<div>
+					<div class="font-label text-label-sm uppercase">GRAND TOTAL</div>
+					<div class="font-display text-display-md-mobile sm:text-display-md tabular-nums">
+						{formatMoney(calc.grandTotal, currency)}
+					</div>
+				</div>
+				{#if calc.totalDiscount > 0}
+					<div class="bg-sage-cream text-on-sage-cream rounded-lg px-4 py-2">
+						<div class="font-label text-label-sm uppercase">VOUCHER DISKON</div>
+						<div class="font-title text-title-md tabular-nums">
+							-{formatMoney(calc.totalDiscount, currency)}
+						</div>
+					</div>
 				{/if}
-			</button>
+				{#if calc.grandTotal > 0}
+					<button
+						type="button"
+						onclick={openPublicReceiptPreview}
+						class="bg-ink text-on-surface font-label text-label-sm ml-auto inline-flex cursor-pointer items-center gap-1.5 rounded-full px-4 py-2 transition-opacity hover:opacity-90"
+					>
+						<span class="material-symbols-outlined text-[16px]" aria-hidden="true">share</span>
+						<span>Share Public Receipt</span>
+					</button>
+				{/if}
+			</div>
+		</div>
+
+		<div class="bg-sage-cream text-on-sage-cream gap-gutter-sm col-span-12 flex flex-col justify-between rounded-xl p-4 lg:col-span-5">
+			<div class="border-ink overflow-hidden rounded-lg border-2">
+				<img
+					src="/images/pop_split_bill.jpg"
+					alt="Ilustrasi patungan makan bersama teman"
+					class="h-48 w-full object-cover"
+				/>
+			</div>
+			<div class="flex flex-wrap items-center justify-between gap-2 px-2">
+				<span class="font-headline text-headline-md uppercase">
+					{participants.length} PESERTA AKTIF
+				</span>
+				<span class="bg-income text-on-income font-label text-label-sm rounded-full px-3 py-1 uppercase tabular-nums">
+					{paidFriendsCount} Lunas · {unpaidFriendsCount} Belum
+				</span>
+			</div>
 		</div>
 	</div>
 
 	{#if activePanel === 'calculator'}
 		<!-- 2-Column Split Workspace -->
-		<div class="grid grid-cols-1 items-start gap-gutter-lg lg:grid-cols-12">
+		<div class="gap-gutter-lg grid grid-cols-1 items-start lg:grid-cols-12">
 			<!-- Left Column: Builder (7 cols) -->
-			<div class="flex flex-col gap-gutter-md lg:col-span-7">
+			<div class="gap-gutter-md flex flex-col lg:col-span-7">
 				<!-- Card 1: Session Info & Participants -->
-				<section class="bg-surface-card border-outline flex flex-col gap-gutter-md rounded-md border p-gutter-md">
+				<section class="bg-surface-card border-outline-variant gap-gutter-md flex flex-col rounded-xl border p-6">
 					<header class="flex flex-wrap items-center justify-between gap-2">
-						<h2 class="font-title text-title-md text-on-surface">1. Event &amp; Participants</h2>
+						<h2 class="font-headline text-headline-md text-on-surface uppercase">
+							1. Event &amp; Participants
+						</h2>
 						{#if editingId}
 							<button
 								type="button"
 								onclick={resetForm}
-								class="font-label text-label-sm text-primary cursor-pointer hover:underline"
+								class="font-label text-label-sm text-marigold cursor-pointer hover:underline"
 							>
 								+ New Session
 							</button>
 						{:else}
 							<span class="font-body text-body-sm text-on-surface-variant">
-								Add friends joining this order
+								Tambahkan teman yang ikut patungan
 							</span>
 						{/if}
 					</header>
 
-					<div class="grid grid-cols-1 gap-gutter-sm sm:grid-cols-12">
+					<div class="gap-gutter-sm grid grid-cols-1 sm:grid-cols-12">
 						<label class="flex flex-col gap-1 sm:col-span-5">
-							<span class="font-label text-label-sm text-on-surface-variant">Event / Order Name</span>
+							<span class="font-label text-label-sm text-on-surface-variant uppercase">Event / Order Name</span>
 							<input
 								type="text"
 								bind:value={title}
-								placeholder="e.g. GoFood Makan Siang"
+								placeholder="e.g. GoFood Makan Malam"
 								maxlength={100}
-								class="border-outline bg-surface-container-high font-body text-body-md text-on-surface focus:border-primary focus:bg-surface-card focus:ring-primary rounded border px-3 py-1.5 outline-none focus:ring-1"
+								class="border-outline-variant bg-surface-container font-body text-body-md text-on-surface focus:border-primary rounded border px-3 py-2 outline-none"
 							/>
 						</label>
 						<label class="flex flex-col gap-1 sm:col-span-4">
-							<span class="font-label text-label-sm text-on-surface-variant">Merchant (optional)</span>
+							<span class="font-label text-label-sm text-on-surface-variant uppercase">Merchant (optional)</span>
 							<input
 								type="text"
 								bind:value={merchant}
 								placeholder="e.g. Kopi Kenangan"
 								maxlength={80}
-								class="border-outline bg-surface-container-high font-body text-body-md text-on-surface focus:border-primary focus:bg-surface-card focus:ring-primary rounded border px-3 py-1.5 outline-none focus:ring-1"
+								class="border-outline-variant bg-surface-container font-body text-body-md text-on-surface focus:border-primary rounded border px-3 py-2 outline-none"
 							/>
 						</label>
 						<label class="flex flex-col gap-1 sm:col-span-3">
-							<span class="font-label text-label-sm text-on-surface-variant">Date</span>
+							<span class="font-label text-label-sm text-on-surface-variant uppercase">Date</span>
 							<input
 								type="date"
 								bind:value={date}
-								class="border-outline bg-surface-container-high font-body text-body-sm text-on-surface focus:border-primary focus:bg-surface-card focus:ring-primary rounded border px-2.5 py-1.5 tabular-nums outline-none focus:ring-1"
+								class="border-outline-variant bg-surface-container font-mono text-mono-sm text-on-surface focus:border-primary rounded border px-2.5 py-2 tabular-nums outline-none"
 							/>
 						</label>
 					</div>
 
-					<div class="flex flex-wrap items-center gap-gutter-sm">
+					<div class="gap-gutter-sm flex flex-wrap items-center">
 						{#each participants as person (person.id)}
 							{#if person.isMe}
-								<span class="bg-primary-container border-accent-orange/30 font-label text-label-md text-on-primary-container inline-flex items-center gap-2 rounded-full border py-1 pr-3 pl-1.5">
-									<span class="bg-primary text-on-primary font-label text-label-sm flex size-6 items-center justify-center rounded-full">
+								<span class="bg-marigold text-on-marigold font-label text-label-md inline-flex items-center gap-2 rounded-full py-1 pr-3 pl-1.5">
+									<span class="bg-ink text-on-surface font-label text-label-sm flex size-6 items-center justify-center rounded-full">
 										{initialsFor(person.name)}
 									</span>
 									<input
@@ -694,12 +743,12 @@
 										bind:value={person.name}
 										aria-label="Your name"
 										maxlength={40}
-										class="w-16 bg-transparent font-semibold outline-none focus:w-24"
+										class="w-16 bg-transparent font-bold outline-none focus:w-24"
 									/>
 									<span class="text-xs opacity-75">(Paid)</span>
 								</span>
 							{:else}
-								<span class="bg-surface-container-high border-outline font-label text-label-md text-on-surface inline-flex items-center gap-2 rounded-full border py-1 pr-2.5 pl-1.5">
+								<span class="bg-surface-container border-outline-variant font-label text-label-md text-on-surface inline-flex items-center gap-2 rounded-full border py-1 pr-2.5 pl-1.5">
 									<span
 										class="font-label text-label-sm flex size-6 items-center justify-center rounded-full text-white"
 										style={`background:${person.color}`}
@@ -717,7 +766,7 @@
 										type="button"
 										onclick={() => removeParticipant(person.id)}
 										aria-label={`Remove ${person.name}`}
-										class="text-on-surface-variant hover:text-expense cursor-pointer"
+										class="text-on-surface-variant hover:text-coral cursor-pointer"
 									>
 										<span class="material-symbols-outlined text-[15px]" aria-hidden="true">close</span>
 									</button>
@@ -740,12 +789,12 @@
 											addingFriend = false;
 										}
 									}}
-									class="border-primary bg-surface-card font-body text-body-sm text-on-surface h-8 w-36 rounded-full border px-3 outline-none"
+									class="border-primary bg-surface-container font-body text-body-sm text-on-surface h-8 w-36 rounded-full border px-3 outline-none"
 								/>
 								<button
 									type="button"
 									onclick={addParticipant}
-									class="bg-primary text-on-primary font-label text-label-sm h-8 cursor-pointer rounded-full px-3"
+									class="bg-pill-white text-on-pill-white font-label text-label-sm h-8 cursor-pointer rounded-full px-3.5"
 								>
 									Add
 								</button>
@@ -754,7 +803,7 @@
 							<button
 								type="button"
 								onclick={() => (addingFriend = true)}
-								class="border-outline-variant font-label text-label-sm text-primary hover:bg-primary-container/30 inline-flex cursor-pointer items-center gap-1 rounded-full border border-dashed px-3 py-1.5 transition-colors"
+								class="border-outline-variant font-label text-label-sm text-sky-mint hover:bg-surface-container inline-flex cursor-pointer items-center gap-1 rounded-full border border-dashed px-3.5 py-1.5 transition-colors"
 							>
 								+ Add Friend
 							</button>
@@ -763,21 +812,21 @@
 				</section>
 
 				<!-- Card 2: Menu Items -->
-				<section class="bg-surface-card border-outline flex flex-col gap-gutter-md rounded-md border p-gutter-md">
+				<section class="bg-surface-card border-outline-variant gap-gutter-md flex flex-col rounded-xl border p-6">
 					<header class="flex items-center justify-between gap-2">
-						<h2 class="font-title text-title-md text-on-surface">
+						<h2 class="font-headline text-headline-md text-on-surface uppercase">
 							2. Menu Items ({items.length})
 						</h2>
 						<button
 							type="button"
 							onclick={addItem}
-							class="bg-surface-container-high border-outline font-label text-label-sm text-primary hover:bg-primary-container/40 inline-flex cursor-pointer items-center gap-1 rounded border px-3 py-1 transition-colors"
+							class="bg-pill-white text-on-pill-white font-label text-label-sm inline-flex cursor-pointer items-center gap-1 rounded-full px-3.5 py-1.5 transition-opacity hover:opacity-90"
 						>
 							+ Add Item
 						</button>
 					</header>
 
-					<div class="flex flex-col gap-gutter-sm">
+					<div class="gap-gutter-sm flex flex-col">
 						{#each items as item, idx (item.id)}
 							{@const allSelected =
 								participants.length > 0 &&
@@ -787,7 +836,7 @@
 								(Number(item.price) || 0) * (Number(item.qty) || 0) -
 									(Number(item.itemDiscount) || 0)
 							)}
-							<div class="bg-surface-container-high border-outline flex flex-col gap-2.5 rounded border p-3">
+							<div class="bg-surface-container border-outline-variant flex flex-col gap-3 rounded-lg border p-3.5">
 								<div class="grid grid-cols-12 items-center gap-2">
 									<div class="col-span-12 sm:col-span-5">
 										<input
@@ -795,11 +844,11 @@
 											bind:value={item.name}
 											placeholder={`Menu #${idx + 1} (e.g. Nasi Goreng Spesial)`}
 											maxlength={80}
-											class="border-outline bg-surface-card font-title text-title-md text-on-surface focus:border-primary w-full rounded border px-2.5 py-1.5 outline-none"
+											class="border-outline-variant bg-surface font-title text-title-md text-on-surface focus:border-primary w-full rounded border px-3 py-1.5 outline-none"
 										/>
 									</div>
 									<div class="col-span-3 sm:col-span-2">
-										<div class="border-outline bg-surface-card flex items-center rounded border px-2 py-1.5">
+										<div class="border-outline-variant bg-surface flex items-center rounded border px-2.5 py-1.5">
 											<span class="font-mono text-mono-sm text-on-surface-variant mr-1">×</span>
 											<input
 												type="number"
@@ -812,8 +861,8 @@
 										</div>
 									</div>
 									<div class="col-span-7 sm:col-span-4">
-										<div class="border-outline bg-surface-card flex items-center gap-1 rounded border px-2.5 py-1.5">
-											<span class="font-body text-body-sm text-on-surface-variant">{currency}</span>
+										<div class="border-outline-variant bg-surface flex items-center gap-1 rounded border px-2.5 py-1.5">
+											<span class="font-mono text-mono-sm text-on-surface-variant">{currency}</span>
 											<input
 												type="text"
 												inputmode="numeric"
@@ -823,7 +872,7 @@
 												oninput={(e) => {
 													item.price = parseNumberWithDots((e.target as HTMLInputElement).value);
 												}}
-												class="font-label text-label-lg text-on-surface w-full bg-transparent text-right tabular-nums outline-none"
+												class="font-mono text-mono-md text-on-surface w-full bg-transparent text-right tabular-nums outline-none"
 											/>
 										</div>
 									</div>
@@ -832,24 +881,24 @@
 											type="button"
 											onclick={() => removeItem(item.id)}
 											aria-label="Remove item"
-											class="text-on-surface-variant hover:bg-expense-container hover:text-on-expense-container cursor-pointer rounded p-1 transition-colors"
+											class="bg-surface-card text-on-surface-variant hover:bg-coral hover:text-on-coral flex size-7 cursor-pointer items-center justify-center rounded-full transition-colors"
 										>
-											<span class="material-symbols-outlined text-[17px]" aria-hidden="true">close</span>
+											<span class="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
 										</button>
 									</div>
 								</div>
 
 								<div class="flex flex-wrap items-center justify-between gap-2">
 									<div class="flex flex-wrap items-center gap-1.5">
-										<span class="font-body text-body-sm text-on-surface-variant">Eaters:</span>
+										<span class="font-label text-label-sm text-on-surface-variant uppercase">Eaters:</span>
 										<button
 											type="button"
 											onclick={() => toggleItemAllShares(item.id)}
 											class={cn(
-												'font-label text-label-sm cursor-pointer rounded-full border px-2 py-0.5 transition-colors',
+												'font-label text-label-sm cursor-pointer rounded-full px-2.5 py-0.5 transition-colors',
 												allSelected
-													? 'bg-primary text-on-primary border-primary'
-													: 'bg-surface-card border-outline text-on-surface-variant hover:text-on-surface'
+													? 'bg-pill-white text-on-pill-white'
+													: 'bg-surface-card text-on-surface-variant hover:text-on-surface'
 											)}
 										>
 											All
@@ -860,10 +909,10 @@
 												type="button"
 												onclick={() => toggleItemShare(item.id, person.id)}
 												class={cn(
-													'font-label text-label-sm cursor-pointer rounded-full border px-2.5 py-0.5 transition-colors',
+													'font-label text-label-sm cursor-pointer rounded-full px-2.5 py-0.5 transition-colors',
 													active
-														? 'bg-primary-container border-accent-orange/40 text-on-primary-container'
-														: 'bg-surface-card border-outline text-on-surface-variant hover:text-on-surface'
+														? 'bg-coral text-on-coral'
+														: 'bg-surface-card text-on-surface-variant hover:text-on-surface'
 												)}
 											>
 												{person.name}
@@ -883,15 +932,15 @@
 												item.itemDiscount = parseNumberWithDots((e.target as HTMLInputElement).value);
 											}}
 											class={cn(
-												'border-outline bg-surface-card font-label text-label-sm w-24 rounded border px-2 py-0.5 text-right tabular-nums outline-none focus:border-primary',
-												item.itemDiscount > 0 ? 'text-on-income-container' : 'text-on-surface-variant'
+												'border-outline-variant bg-surface font-mono text-mono-sm w-24 rounded border px-2 py-0.5 text-right tabular-nums outline-none focus:border-primary',
+												item.itemDiscount > 0 ? 'text-income' : 'text-on-surface-variant'
 											)}
 										/>
 									</label>
 								</div>
 
 								{#if itemNet > 0 && !participants.some((p) => (item.shares[p.id] ?? 0) > 0)}
-									<p class="font-body text-body-sm text-on-warning-container">
+									<p class="font-body text-body-sm text-marigold font-semibold">
 										⚠ Select at least one participant for this menu item.
 									</p>
 								{/if}
@@ -901,16 +950,16 @@
 				</section>
 
 				<!-- Card 3: Multi-Discount & Fees Engine -->
-				<section class="bg-surface-card border-outline flex flex-col gap-gutter-md rounded-md border p-gutter-md">
+				<section class="bg-surface-card border-outline-variant gap-gutter-md flex flex-col rounded-xl border p-6">
 					<header class="flex flex-wrap items-center justify-between gap-2">
-						<h2 class="font-title text-title-md text-on-surface">
+						<h2 class="font-headline text-headline-md text-on-surface uppercase">
 							3. Multi-Discount &amp; Fees Engine
 						</h2>
 						<label class="inline-flex cursor-pointer items-center gap-2">
 							<input
 								type="checkbox"
 								bind:checked={autoDiscountEnabled}
-								class="border-outline text-primary focus:ring-primary rounded"
+								class="accent-coral rounded"
 							/>
 							<span class="font-label text-label-sm text-on-surface-variant">
 								Auto-calculate discount from Final Paid Total
@@ -919,11 +968,11 @@
 					</header>
 
 					{#if autoDiscountEnabled}
-						<div class="bg-income-container/50 border-income/30 flex flex-wrap items-center gap-2 rounded border p-3">
+						<div class="bg-sky-mint text-on-sky-mint flex flex-wrap items-center gap-3 rounded-lg p-4">
 							<div class="min-w-[200px] flex-1">
-								<p class="font-body text-body-sm text-on-income-container">
+								<p class="font-body text-body-sm font-semibold">
 									Gross subtotal + fees:
-									<strong class="tabular-nums">
+									<strong class="font-mono tabular-nums">
 										{formatMoney(calc.assignedItemsSubtotal + calc.grossFeesTotal, currency)}
 									</strong>
 								</p>
@@ -935,13 +984,13 @@
 									oninput={(e) => {
 										autoPaidDisplay = formatNumberWithDots((e.target as HTMLInputElement).value);
 									}}
-									class="border-outline bg-surface-card font-label text-label-lg text-on-surface mt-1.5 w-full rounded border px-3 py-1.5 tabular-nums outline-none focus:border-primary"
+									class="border-ink/25 bg-sage-cream font-mono text-mono-md text-ink mt-1.5 w-full rounded border px-3 py-1.5 tabular-nums outline-none"
 								/>
 							</div>
 							<button
 								type="button"
 								onclick={applyAutoDiscountFromPaid}
-								class="bg-tertiary text-white font-label text-label-sm cursor-pointer rounded px-3.5 py-2 hover:opacity-95"
+								class="bg-ink text-on-surface font-label text-label-sm cursor-pointer rounded-full px-4 py-2 transition-opacity hover:opacity-90"
 							>
 								Apply Implied Discount
 							</button>
@@ -957,15 +1006,15 @@
 							<button
 								type="button"
 								onclick={addDiscountRow}
-								class="font-label text-label-sm text-primary cursor-pointer hover:underline"
+								class="font-label text-label-sm text-marigold cursor-pointer hover:underline"
 							>
 								+ Add Voucher
 							</button>
 						</div>
 
-						<div class="grid grid-cols-1 gap-gutter-sm sm:grid-cols-2">
+						<div class="gap-gutter-sm grid grid-cols-1 sm:grid-cols-2">
 							{#each discounts as disc (disc.id)}
-								<div class="bg-surface-container-high border-outline flex flex-col gap-2 rounded border p-3">
+								<div class="bg-surface-container border-outline-variant flex flex-col gap-2 rounded-lg border p-3">
 									<div class="flex items-center justify-between gap-2">
 										<input
 											type="text"
@@ -977,7 +1026,7 @@
 											<button
 												type="button"
 												onclick={() => (disc.target = disc.target === 'items' ? 'delivery' : 'items')}
-												class="bg-surface-card border-outline font-label text-[11px] text-on-surface-variant cursor-pointer rounded border px-1.5 py-0.5"
+												class="bg-pill-white text-on-pill-white font-label cursor-pointer rounded-full px-2 py-0.5 text-[10px]"
 											>
 												{disc.target === 'delivery' ? 'Ongkir' : 'Menu'}
 											</button>
@@ -985,7 +1034,7 @@
 												type="button"
 												onclick={() => removeDiscountRow(disc.id)}
 												aria-label="Remove discount"
-												class="text-on-surface-variant hover:text-expense cursor-pointer"
+												class="text-on-surface-variant hover:text-coral cursor-pointer"
 											>
 												<span class="material-symbols-outlined text-[15px]" aria-hidden="true">close</span>
 											</button>
@@ -993,14 +1042,19 @@
 									</div>
 
 									<div class="flex items-center gap-1.5">
-										<select
-											bind:value={disc.mode}
-											aria-label="Discount type"
-											class="border-outline bg-surface-card font-label text-label-sm text-on-surface rounded border px-2 py-1.5 outline-none"
-										>
-											<option value="percent">%</option>
-											<option value="fixed">{currency}</option>
-										</select>
+										<Select.Root type="single" bind:value={disc.mode}>
+											<Select.Trigger
+												aria-label="Discount type"
+												size="xs"
+												class="bg-surface font-label text-label-sm w-auto min-w-[68px]"
+											>
+												{disc.mode === 'percent' ? '%' : currency}
+											</Select.Trigger>
+											<Select.Content align="start" class="min-w-[84px]">
+												<Select.Item value="percent" label="%">%</Select.Item>
+												<Select.Item value="fixed" label={currency}>{currency}</Select.Item>
+											</Select.Content>
+										</Select.Root>
 
 										{#if disc.mode === 'percent'}
 											<input
@@ -1010,7 +1064,7 @@
 												step="0.5"
 												bind:value={disc.value}
 												aria-label="Discount percentage"
-												class="border-outline bg-surface-card font-body text-body-md text-on-surface w-20 rounded border px-2 py-1 text-right tabular-nums outline-none"
+												class="border-outline-variant bg-surface font-mono text-mono-sm text-on-surface w-20 rounded border px-2 py-1.5 text-right tabular-nums outline-none"
 											/>
 											<input
 												type="text"
@@ -1022,7 +1076,7 @@
 													const v = parseNumberWithDots((e.target as HTMLInputElement).value);
 													disc.maxAmount = v > 0 ? v : undefined;
 												}}
-												class="border-outline bg-surface-card font-body text-body-sm text-on-surface min-w-0 flex-1 rounded border px-2 py-1.5 text-right tabular-nums outline-none"
+												class="border-outline-variant bg-surface font-mono text-mono-sm text-on-surface min-w-0 flex-1 rounded border px-2 py-1.5 text-right tabular-nums outline-none"
 											/>
 										{:else}
 											<input
@@ -1034,7 +1088,7 @@
 												oninput={(e) => {
 													disc.value = parseNumberWithDots((e.target as HTMLInputElement).value);
 												}}
-												class="border-outline bg-surface-card font-body text-body-md text-on-income-container min-w-0 flex-1 rounded border px-2.5 py-1 text-right tabular-nums outline-none"
+												class="border-outline-variant bg-surface font-mono text-mono-sm text-income min-w-0 flex-1 rounded border px-2.5 py-1.5 text-right tabular-nums outline-none"
 											/>
 										{/if}
 									</div>
@@ -1044,7 +1098,7 @@
 					</div>
 
 					<!-- Fees list -->
-					<div class="border-outline flex flex-col gap-2.5 border-t pt-gutter-sm">
+					<div class="border-outline-variant gap-2.5 border-t pt-3 flex flex-col">
 						<div class="flex items-center justify-between">
 							<span class="font-label text-label-sm text-on-surface-variant tracking-wider uppercase">
 								Delivery, Service &amp; Tax (PB1)
@@ -1052,15 +1106,15 @@
 							<button
 								type="button"
 								onclick={addFeeRow}
-								class="font-label text-label-sm text-primary cursor-pointer hover:underline"
+								class="font-label text-label-sm text-sky-mint cursor-pointer hover:underline"
 							>
 								+ Add Fee
 							</button>
 						</div>
 
-						<div class="grid grid-cols-1 gap-gutter-sm sm:grid-cols-3">
+						<div class="gap-gutter-sm grid grid-cols-1 sm:grid-cols-3">
 							{#each fees as fee (fee.id)}
-								<div class="bg-surface-container-high border-outline flex flex-col gap-2 rounded border p-3">
+								<div class="bg-surface-container border-outline-variant flex flex-col gap-2 rounded-lg border p-3">
 									<div class="flex items-center justify-between gap-1">
 										<input
 											type="text"
@@ -1072,21 +1126,26 @@
 											type="button"
 											onclick={() => removeFeeRow(fee.id)}
 											aria-label="Remove fee"
-											class="text-on-surface-variant hover:text-expense cursor-pointer"
+											class="text-on-surface-variant hover:text-coral cursor-pointer"
 										>
 											<span class="material-symbols-outlined text-[15px]" aria-hidden="true">close</span>
 										</button>
 									</div>
 
 									<div class="flex items-center gap-1.5">
-										<select
-											bind:value={fee.mode}
-											aria-label="Fee unit"
-											class="border-outline bg-surface-card font-label text-label-sm text-on-surface rounded border px-1.5 py-1 outline-none"
-										>
-											<option value="fixed">{currency}</option>
-											<option value="percent">%</option>
-										</select>
+										<Select.Root type="single" bind:value={fee.mode}>
+											<Select.Trigger
+												aria-label="Fee unit"
+												size="xs"
+												class="bg-surface font-label text-label-sm w-auto min-w-[68px] px-1.5"
+											>
+												{fee.mode === 'percent' ? '%' : currency}
+											</Select.Trigger>
+											<Select.Content align="start" class="min-w-[84px]">
+												<Select.Item value="fixed" label={currency}>{currency}</Select.Item>
+												<Select.Item value="percent" label="%">%</Select.Item>
+											</Select.Content>
+										</Select.Root>
 
 										{#if fee.mode === 'percent'}
 											<input
@@ -1096,7 +1155,7 @@
 												step="0.5"
 												bind:value={fee.value}
 												aria-label="Fee percentage"
-												class="border-outline bg-surface-card font-body text-body-md text-on-surface min-w-0 flex-1 rounded border px-2 py-1 text-right tabular-nums outline-none"
+												class="border-outline-variant bg-surface font-mono text-mono-sm text-on-surface min-w-0 flex-1 rounded border px-2 py-1 text-right tabular-nums outline-none"
 											/>
 										{:else}
 											<input
@@ -1108,7 +1167,7 @@
 												oninput={(e) => {
 													fee.value = parseNumberWithDots((e.target as HTMLInputElement).value);
 												}}
-												class="border-outline bg-surface-card font-body text-body-md text-on-surface min-w-0 flex-1 rounded border px-2 py-1 text-right tabular-nums outline-none"
+												class="border-outline-variant bg-surface font-mono text-mono-sm text-on-surface min-w-0 flex-1 rounded border px-2 py-1 text-right tabular-nums outline-none"
 											/>
 										{/if}
 									</div>
@@ -1117,9 +1176,9 @@
 										type="button"
 										onclick={() =>
 											(fee.allocation = fee.allocation === 'equal' ? 'proportional' : 'equal')}
-										class="font-body text-[11px] text-on-surface-variant hover:text-on-surface cursor-pointer text-left"
+										class="font-body text-on-surface-variant hover:text-on-surface cursor-pointer text-left text-[11px]"
 									>
-										Split: <strong class="font-semibold">{fee.allocation === 'equal' ? 'Equal' : 'Proportional'}</strong>
+										Split: <strong class="text-on-surface font-semibold">{fee.allocation === 'equal' ? 'Equal' : 'Proportional'}</strong>
 									</button>
 								</div>
 							{/each}
@@ -1128,22 +1187,21 @@
 				</section>
 			</div>
 
-			<!-- Right Column: Live Proportional Breakdown & Actions (5 cols) -->
-			<div class="flex flex-col gap-gutter-md lg:sticky lg:top-20 lg:col-span-5">
-				<section class="bg-surface-card border-outline flex flex-col gap-gutter-md rounded-md border p-gutter-md">
-					<header class="border-outline flex items-center justify-between border-b pb-gutter-sm">
+			<!-- Right Column: Proportional Breakdown & Save (5 cols) -->
+			<div class="gap-gutter-md flex flex-col lg:sticky lg:top-24 lg:col-span-5">
+				<section class="bg-surface-card border-outline-variant gap-gutter-md flex flex-col rounded-xl border p-6">
+					<header class="border-outline-variant flex items-center justify-between border-b pb-3">
 						<div>
-							<h2 class="font-title text-title-lg text-on-surface">Proportional Breakdown</h2>
+							<h2 class="font-headline text-headline-md text-on-surface uppercase">
+								PROPORTIONAL BREAKDOWN
+							</h2>
 							<p class="font-body text-body-sm text-on-surface-variant">
 								Live calculation per person
-								{#if calc.totalDiscount > 0}
-									· <span class="text-on-income-container font-medium">Saved {formatMoney(calc.totalDiscount, currency)}</span>
-								{/if}
 							</p>
 						</div>
 						<div class="text-right">
-							<span class="font-body text-body-sm text-on-surface-variant block">Final Total</span>
-							<span class="font-headline text-headline-md text-on-surface tabular-nums">
+							<span class="font-label text-label-sm text-on-surface-variant block uppercase">Final Total</span>
+							<span class="font-headline text-headline-lg text-on-surface tabular-nums">
 								{formatMoney(calc.grandTotal, currency)}
 							</span>
 						</div>
@@ -1152,7 +1210,7 @@
 					{#if isZeroDecimal}
 						<div class="flex items-center justify-between gap-2">
 							<span class="font-body text-body-sm text-on-surface-variant">Rounding per person</span>
-							<div class="bg-surface-container-low border-outline inline-flex items-center rounded border p-0.5">
+							<div class="bg-ink inline-flex items-center gap-0.5 rounded-full p-1">
 								{#each [
 									{ value: 0, label: 'Exact' },
 									{ value: 100, label: '100' },
@@ -1163,9 +1221,9 @@
 										type="button"
 										onclick={() => (roundingStep = opt.value as SplitRoundingStep)}
 										class={cn(
-											'font-label text-[11px] cursor-pointer rounded-sm px-2 py-0.5 transition-colors',
+											'font-label cursor-pointer rounded-full px-2.5 py-0.5 text-[11px] transition-colors',
 											roundingStep === opt.value
-												? 'bg-surface-card text-on-surface shadow-xs'
+												? 'bg-pill-white text-on-pill-white'
 												: 'text-on-surface-variant hover:text-on-surface'
 										)}
 									>
@@ -1176,64 +1234,88 @@
 						</div>
 					{/if}
 
-					<!-- Per-Person Breakdown Cards -->
-					<div class="flex flex-col gap-gutter-sm">
+					<!-- Per-Person Color-Blocked Cards (Stitch Pop Style) -->
+					<div class="gap-gutter-sm flex flex-col">
 						{#each calc.participants as row (row.participant.id)}
-							<div
-								class={cn(
-									'flex flex-col gap-2 rounded border p-3',
-									row.participant.isMe
-										? 'border-accent-orange/40 bg-surface-container-high'
-										: 'border-outline bg-surface-card'
-								)}
-							>
+							{@const cardClass = row.participant.isMe
+								? 'bg-marigold text-on-marigold'
+								: row.participant.paid
+									? 'bg-sky-mint text-on-sky-mint'
+									: 'bg-surface-container border border-outline-variant text-on-surface'}
+							<div class={cn('flex flex-col gap-2.5 rounded-xl p-4', cardClass)}>
 								<div class="flex items-center justify-between gap-2">
 									<div class="flex min-w-0 items-center gap-2">
-										<span class="font-title text-title-md text-on-surface truncate">
-											{row.participant.name}{row.participant.isMe ? ' (You)' : ''}
-										</span>
 										{#if row.participant.isMe}
-											<span class="bg-income-container text-on-income-container font-label text-label-sm rounded-full px-2 py-0.5">
-												Paid
+											<span class="bg-ink text-on-surface font-label text-label-sm rounded-full px-2.5 py-0.5 uppercase">
+												PAYER (TALANGIN)
 											</span>
 										{:else}
 											<button
 												type="button"
 												onclick={() => toggleParticipantPaidLocal(row.participant.id)}
 												class={cn(
-													'font-label text-label-sm cursor-pointer rounded-full px-2 py-0.5 transition-opacity hover:opacity-85',
+													'font-label text-label-sm cursor-pointer rounded-full px-2.5 py-0.5 uppercase transition-opacity hover:opacity-90',
 													row.participant.paid
-														? 'bg-income-container text-on-income-container'
-														: 'bg-warning-container text-on-warning-container'
+														? 'bg-income text-on-income'
+														: 'bg-coral text-on-coral'
 												)}
 											>
-												{row.participant.paid ? 'Paid' : 'Unpaid'}
+												{row.participant.paid ? 'LUNAS' : 'BELUM LUNAS'}
 											</button>
 										{/if}
 									</div>
-									<span class="font-headline text-headline-md text-on-surface shrink-0 tabular-nums">
-										{formatMoney(row.finalAmount, currency)}
+									<span class="bg-ink text-on-surface font-title text-title-md flex size-8 shrink-0 items-center justify-center rounded-full">
+										{initialsFor(row.participant.name).slice(0, 1)}
 									</span>
 								</div>
 
+								<div class="flex items-end justify-between gap-2">
+									<div class="min-w-0">
+										<div class="font-headline text-headline-md truncate uppercase">
+											{row.participant.name}{row.participant.isMe ? ' (KAMU)' : ''}
+										</div>
+										{#if row.discountShare > 0}
+											<p class={cn('font-body text-body-sm', row.participant.isMe || row.participant.paid ? 'text-ink/80' : 'text-on-surface-variant')}>
+												Diskon proporsional -{formatMoney(row.discountShare, currency)}
+											</p>
+										{/if}
+									</div>
+									<div class="text-right">
+										<span class="font-display text-display-md-mobile tabular-nums">
+											{formatMoney(row.finalAmount, currency)}
+										</span>
+									</div>
+								</div>
+
+								{#if !row.participant.isMe && !row.participant.paid}
+									<div class="flex justify-end">
+										<button
+											type="button"
+											onclick={() => toggleParticipantPaidLocal(row.participant.id)}
+											class="bg-pill-white text-on-pill-white font-label text-label-sm cursor-pointer rounded-full px-3 py-1 uppercase transition-opacity hover:opacity-90"
+										>
+											Tandai Lunas
+										</button>
+									</div>
+								{/if}
+
 								{#if row.items.length > 0}
-									<div class="border-outline font-body text-body-sm text-on-surface-variant flex flex-col gap-1 border-t pt-2 tabular-nums">
+									<div
+										class={cn(
+											'font-body text-body-sm flex flex-col gap-1 border-t pt-2 tabular-nums',
+											row.participant.isMe || row.participant.paid ? 'border-ink/15 text-ink/85' : 'border-outline-variant text-on-surface-variant'
+										)}
+									>
 										<div class="flex justify-between gap-2">
 											<span class="truncate">
 												Items ({row.items.map((i) => `${i.name} ${i.shareLabel}`).join(', ')})
 											</span>
-											<span class="shrink-0">{formatMoney(row.itemsSubtotal, currency)}</span>
+											<span class="font-mono shrink-0">{formatMoney(row.itemsSubtotal, currency)}</span>
 										</div>
-										{#if row.discountShare > 0}
-											<div class="text-on-income-container flex justify-between gap-2">
-												<span>Proportional discounts</span>
-												<span>-{formatMoney(row.discountShare, currency)}</span>
-											</div>
-										{/if}
 										{#if row.feeShare > 0}
 											<div class="flex justify-between gap-2">
 												<span>Fees &amp; tax share</span>
-												<span>+{formatMoney(row.feeShare, currency)}</span>
+												<span class="font-mono">+{formatMoney(row.feeShare, currency)}</span>
 											</div>
 										{/if}
 									</div>
@@ -1246,7 +1328,7 @@
 					<form
 						method="POST"
 						action="?/saveSplitBill"
-						class="border-outline flex flex-col gap-gutter-sm border-t pt-gutter-sm"
+						class="border-outline-variant gap-gutter-sm flex flex-col border-t pt-4"
 						use:enhance={({ cancel }) => {
 							if (calc.unassignedAmount > 0) {
 								error = 'Assign at least one participant to every menu item before saving.';
@@ -1275,48 +1357,46 @@
 					>
 						<input type="hidden" name="splitBillJson" value={serializedPayload} />
 
-						<span class="font-label text-label-md text-on-surface">Record to Sanku Ledger</span>
+						<span class="font-label text-label-sm text-on-surface-variant uppercase">
+							Record to Sanku Ledger
+						</span>
 						<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
 							<button
 								type="button"
 								onclick={() => (ledgerMode = 'my_share')}
 								class={cn(
-									'flex cursor-pointer items-center gap-2 rounded border p-2.5 text-left transition-colors',
+									'flex cursor-pointer items-center gap-2 rounded-full px-3.5 py-2 text-left transition-colors',
 									ledgerMode === 'my_share'
-										? 'border-primary bg-primary-container/40'
-										: 'border-outline bg-surface-card hover:bg-surface-container-low'
+										? 'bg-pill-white text-on-pill-white'
+										: 'bg-surface-container text-on-surface hover:bg-surface-container/80'
 								)}
 							>
 								<span
 									class={cn(
-										'size-3.5 shrink-0 rounded-full border-2',
-										ledgerMode === 'my_share' ? 'border-primary bg-primary' : 'border-outline-variant'
+										'size-3 shrink-0 rounded-full border-2',
+										ledgerMode === 'my_share' ? 'border-ink bg-coral' : 'border-on-surface-variant'
 									)}
 								></span>
-								<span class="font-label text-label-sm text-on-surface">
-									Porsi Saya Saja (My Share)
-								</span>
+								<span class="font-label text-label-sm">Porsi Saya Saja</span>
 							</button>
 
 							<button
 								type="button"
 								onclick={() => (ledgerMode = 'full_advance')}
 								class={cn(
-									'flex cursor-pointer items-center gap-2 rounded border p-2.5 text-left transition-colors',
+									'flex cursor-pointer items-center gap-2 rounded-full px-3.5 py-2 text-left transition-colors',
 									ledgerMode === 'full_advance'
-										? 'border-primary bg-primary-container/40'
-										: 'border-outline bg-surface-card hover:bg-surface-container-low'
+										? 'bg-pill-white text-on-pill-white'
+										: 'bg-surface-container text-on-surface hover:bg-surface-container/80'
 								)}
 							>
 								<span
 									class={cn(
-										'size-3.5 shrink-0 rounded-full border-2',
-										ledgerMode === 'full_advance' ? 'border-primary bg-primary' : 'border-outline-variant'
+										'size-3 shrink-0 rounded-full border-2',
+										ledgerMode === 'full_advance' ? 'border-ink bg-coral' : 'border-on-surface-variant'
 									)}
 								></span>
-								<span class="font-label text-label-sm text-on-surface">
-									Talangan Penuh (Full)
-								</span>
+								<span class="font-label text-label-sm">Talangan Penuh</span>
 							</button>
 						</div>
 
@@ -1326,7 +1406,7 @@
 							class={cn(
 								'font-body text-body-sm cursor-pointer text-left transition-colors',
 								ledgerMode === 'none'
-									? 'text-primary font-semibold'
+									? 'text-marigold font-semibold'
 									: 'text-on-surface-variant hover:text-on-surface'
 							)}
 						>
@@ -1334,45 +1414,50 @@
 						</button>
 
 						{#if ledgerMode !== 'none'}
+							{@const activeLedgerCat = expenseCategories.find((cat) => cat.id === categoryId)}
 							<div class="grid grid-cols-2 gap-2">
-								<select
-									bind:value={account}
-									aria-label="Select Wallet"
-									class="border-outline bg-surface-card font-body text-body-sm text-on-surface rounded border px-2.5 py-2 outline-none focus:border-primary"
-								>
-									<option value="">Unassigned Wallet</option>
-									{#each wallets as w (w.id)}
-										<option value={w.name}>{w.name}</option>
-									{/each}
-								</select>
-								<select
-									bind:value={categoryId}
-									aria-label="Select Category"
-									class="border-outline bg-surface-card font-body text-body-sm text-on-surface rounded border px-2.5 py-2 outline-none focus:border-primary"
-								>
-									<option value="">Uncategorized</option>
-									{#each expenseCategories as cat (cat.id)}
-										<option value={cat.id}>{cat.emoji} {cat.name}</option>
-									{/each}
-								</select>
+								<Select.Root type="single" bind:value={account}>
+									<Select.Trigger aria-label="Select Wallet" size="sm" class="font-body text-body-sm rounded px-2.5">
+										{account || 'Unassigned Wallet'}
+									</Select.Trigger>
+									<Select.Content>
+										<Select.Item value="" label="Unassigned Wallet">Unassigned Wallet</Select.Item>
+										{#each wallets as w (w.id)}
+											<Select.Item value={w.name} label={w.name}>{w.name}</Select.Item>
+										{/each}
+									</Select.Content>
+								</Select.Root>
+								<Select.Root type="single" bind:value={categoryId}>
+									<Select.Trigger aria-label="Select Category" size="sm" class="font-body text-body-sm rounded px-2.5">
+										{activeLedgerCat ? `${activeLedgerCat.emoji} ${activeLedgerCat.name}` : 'Uncategorized'}
+									</Select.Trigger>
+									<Select.Content>
+										<Select.Item value="" label="Uncategorized">Uncategorized</Select.Item>
+										{#each expenseCategories as cat (cat.id)}
+											<Select.Item value={cat.id} label={`${cat.emoji} ${cat.name}`}>
+												{cat.emoji} {cat.name}
+											</Select.Item>
+										{/each}
+									</Select.Content>
+								</Select.Root>
 							</div>
 						{/if}
 
 						<label class="flex flex-col gap-1">
-							<span class="font-label text-label-sm text-on-surface-variant">
+							<span class="font-label text-label-sm text-on-surface-variant uppercase">
 								Transfer / Payment Destination
 							</span>
 							<input
 								type="text"
 								bind:value={paymentInfo}
-								placeholder="e.g. BCA 1234567890 a/n Alif"
+								placeholder="e.g. BCA 1234567890 a/n Nama Pemilik"
 								maxlength={240}
-								class="border-outline bg-surface-container-high font-body text-body-sm text-on-surface focus:border-primary focus:bg-surface-card rounded border px-2.5 py-1.5 outline-none"
+								class="border-outline-variant bg-surface-container font-body text-body-sm text-on-surface rounded border px-3 py-2 outline-none focus:border-primary"
 							/>
 						</label>
 
 						{#if error}
-							<div class="bg-expense-container text-on-expense-container font-body text-body-sm rounded px-3 py-2" role="alert">
+							<div class="bg-coral text-on-coral font-body text-body-sm rounded-lg px-3.5 py-2 font-semibold" role="alert">
 								{error}
 							</div>
 						{/if}
@@ -1380,7 +1465,7 @@
 						<button
 							type="submit"
 							disabled={saving || calc.unassignedAmount > 0}
-							class="bg-primary text-on-primary font-label text-label-lg w-full cursor-pointer rounded py-2.5 transition-opacity duration-state-change hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-45"
+							class="bg-coral text-on-coral font-label text-label-lg w-full cursor-pointer rounded-full py-3 uppercase transition-opacity duration-state-change hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
 						>
 							{saving
 								? 'Saving to Google Sheet…'
@@ -1391,16 +1476,14 @@
 					</form>
 
 					<!-- Share Actions -->
-					<div class="border-outline grid grid-cols-1 gap-2 border-t pt-gutter-sm sm:grid-cols-2">
+					<div class="border-outline-variant grid grid-cols-1 gap-2 border-t pt-3 sm:grid-cols-2">
 						<button
 							type="button"
 							onclick={copyWhatsAppForCurrent}
 							disabled={calc.grandTotal <= 0}
-							class="bg-surface-card border-outline font-label text-label-md text-on-surface hover:bg-surface-container-low inline-flex cursor-pointer items-center justify-center gap-1.5 rounded border px-3 py-2 transition-colors disabled:opacity-45"
+							class="bg-surface-container text-on-surface hover:bg-surface-container/80 font-label text-label-sm inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-2.5 transition-colors disabled:opacity-45"
 						>
-							<span class="material-symbols-outlined text-[17px]" aria-hidden="true">
-								content_copy
-							</span>
+							<span class="material-symbols-outlined text-[16px]" aria-hidden="true">content_copy</span>
 							<span>{copiedState === 'wa-current' ? 'Copied!' : 'Copy WhatsApp Text'}</span>
 						</button>
 
@@ -1409,10 +1492,10 @@
 								type="button"
 								onclick={copyLinkForCurrent}
 								disabled={calc.grandTotal <= 0}
-								class="bg-on-surface text-surface-card font-label text-label-md inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded px-3 py-2 transition-opacity hover:opacity-95 disabled:opacity-45"
+								class="bg-pill-white text-on-pill-white font-label text-label-sm inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-2.5 transition-opacity hover:opacity-90 disabled:opacity-45"
 							>
-								<span class="material-symbols-outlined text-[17px]" aria-hidden="true">link</span>
-								<span>{copiedState === 'link-current' ? 'Link Copied!' : 'Public Receipt (/s)'}</span>
+								<span class="material-symbols-outlined text-[16px]" aria-hidden="true">link</span>
+								<span>{copiedState === 'link-current' ? 'Copied!' : 'Public Receipt'}</span>
 							</button>
 							<button
 								type="button"
@@ -1420,11 +1503,9 @@
 								disabled={calc.grandTotal <= 0}
 								title="Open receipt preview"
 								aria-label="Open receipt preview"
-								class="bg-surface-card border-outline text-on-surface hover:bg-surface-container-low inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded border disabled:opacity-45"
+								class="bg-surface-container text-on-surface hover:bg-pill-white hover:text-on-pill-white inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors disabled:opacity-45"
 							>
-								<span class="material-symbols-outlined text-[17px]" aria-hidden="true">
-									open_in_new
-								</span>
+								<span class="material-symbols-outlined text-[17px]" aria-hidden="true">open_in_new</span>
 							</button>
 						</div>
 					</div>
@@ -1433,9 +1514,9 @@
 		</div>
 	{:else}
 		<!-- Saved History & Settlement Checklist -->
-		<section class="flex flex-col gap-gutter-md">
-			<div class="bg-surface-card border-outline flex flex-wrap items-center justify-between gap-gutter-sm rounded-md border p-3">
-				<div class="bg-surface-container-low border-outline inline-flex items-center rounded border p-0.5">
+		<section class="gap-gutter-md flex flex-col">
+			<div class="bg-surface-card border-outline-variant gap-gutter-sm flex flex-wrap items-center justify-between rounded-xl border p-4">
+				<div class="bg-ink inline-flex items-center gap-1 rounded-full p-1">
 					{#each [
 						{ id: 'all', label: `All (${splitBills.length})` },
 						{ id: 'open', label: `Unpaid (${openBillsCount})` },
@@ -1445,9 +1526,9 @@
 							type="button"
 							onclick={() => (historyFilter = tab.id as typeof historyFilter)}
 							class={cn(
-								'font-label text-label-sm cursor-pointer rounded-sm px-3 py-1 transition-colors',
+								'font-label text-label-sm cursor-pointer rounded-full px-3.5 py-1 transition-colors',
 								historyFilter === tab.id
-									? 'bg-surface-card text-on-surface shadow-xs'
+									? 'bg-pill-white text-on-pill-white'
 									: 'text-on-surface-variant hover:text-on-surface'
 							)}
 						>
@@ -1461,7 +1542,7 @@
 						<input
 							type="checkbox"
 							bind:checked={recordReimbursement}
-							class="border-outline text-primary focus:ring-primary rounded"
+							class="accent-coral rounded"
 						/>
 						<span>Record friend payment to Income (Full advance bills)</span>
 					</label>
@@ -1471,7 +1552,7 @@
 							resetForm();
 							activePanel = 'calculator';
 						}}
-						class="bg-primary text-on-primary font-label text-label-sm cursor-pointer rounded px-3 py-1.5 hover:opacity-95"
+						class="bg-coral text-on-coral font-label text-label-sm cursor-pointer rounded-full px-4 py-2 transition-opacity hover:opacity-90"
 					>
 						+ New Split Bill
 					</button>
@@ -1479,24 +1560,24 @@
 			</div>
 
 			{#if filteredHistory.length === 0}
-				<div class="bg-surface-card border-outline flex flex-col items-center justify-center gap-2 rounded-md border border-dashed py-14 text-center">
-					<span class="material-symbols-outlined text-on-surface-variant text-[30px]" aria-hidden="true">
-						receipt_long
+				<div class="bg-surface-card border-outline-variant flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed py-14 text-center">
+					<span class="bg-marigold text-on-marigold flex size-12 items-center justify-center rounded-full">
+						<span class="material-symbols-outlined text-[24px]" aria-hidden="true">receipt_long</span>
 					</span>
-					<h2 class="font-title text-title-md text-on-surface">No saved split bills yet</h2>
+					<h2 class="font-headline text-headline-md text-on-surface uppercase">No saved split bills yet</h2>
 					<p class="font-body text-body-sm text-on-surface-variant max-w-sm">
 						Calculate a group order and click "Save to Sanku Ledger" to track friends' settlements here.
 					</p>
 				</div>
 			{:else}
-				<div class="flex flex-col gap-gutter-md">
+				<div class="gap-gutter-md flex flex-col">
 					{#each filteredHistory as bill (bill.id)}
 						{@const billCalc = calculateSplitBill(bill)}
-						<article class="bg-surface-card border-outline flex flex-col gap-gutter-sm rounded-md border p-gutter-md">
-							<div class="flex flex-wrap items-start justify-between gap-gutter-sm">
+						<article class="bg-surface-card border-outline-variant gap-gutter-sm flex flex-col rounded-xl border p-5">
+							<div class="gap-gutter-sm flex flex-wrap items-start justify-between">
 								<div>
 									<div class="flex flex-wrap items-center gap-2">
-										<h3 class="font-title text-title-lg text-on-surface">{bill.title}</h3>
+										<h3 class="font-headline text-headline-md text-on-surface uppercase">{bill.title}</h3>
 										{#if bill.merchant}
 											<span class="font-body text-body-sm text-on-surface-variant">
 												· {bill.merchant}
@@ -1504,10 +1585,10 @@
 										{/if}
 										<span
 											class={cn(
-												'font-label text-label-sm rounded-full px-2.5 py-0.5',
+												'font-label text-label-sm rounded-full px-2.5 py-0.5 uppercase',
 												bill.status === 'settled'
-													? 'bg-income-container text-on-income-container'
-													: 'bg-warning-container text-on-warning-container'
+													? 'bg-income text-on-income'
+													: 'bg-marigold text-on-marigold'
 											)}
 										>
 											{bill.status === 'settled'
@@ -1515,10 +1596,10 @@
 												: `${billCalc.unpaidCount} unpaid · ${formatMoney(billCalc.outstandingAmount, bill.currency)}`}
 										</span>
 									</div>
-									<p class="font-body text-body-sm text-on-surface-variant mt-0.5 tabular-nums">
+									<p class="font-body text-body-sm text-on-surface-variant mt-1 tabular-nums">
 										{bill.date} · Total <strong class="text-on-surface">{formatMoney(billCalc.grandTotal, bill.currency)}</strong> · My share <strong class="text-on-surface">{formatMoney(billCalc.myShare, bill.currency)}</strong>
 										{#if billCalc.totalDiscount > 0}
-											· <span class="text-on-income-container font-medium">Saved {formatMoney(billCalc.totalDiscount, bill.currency)}</span>
+											· <span class="text-income font-semibold">Saved {formatMoney(billCalc.totalDiscount, bill.currency)}</span>
 										{/if}
 									</p>
 								</div>
@@ -1527,21 +1608,21 @@
 									<button
 										type="button"
 										onclick={() => copyWhatsAppForBill(bill)}
-										class="bg-surface-card border-outline font-label text-label-sm text-on-surface hover:bg-surface-container-low cursor-pointer rounded border px-2.5 py-1"
+										class="bg-surface-container text-on-surface hover:bg-pill-white hover:text-on-pill-white font-label text-label-sm cursor-pointer rounded-full px-3 py-1 transition-colors"
 									>
 										{copiedState === `wa-${bill.id}` ? 'Copied!' : 'WhatsApp'}
 									</button>
 									<button
 										type="button"
 										onclick={() => copyLinkForBill(bill)}
-										class="bg-surface-card border-outline font-label text-label-sm text-on-surface hover:bg-surface-container-low cursor-pointer rounded border px-2.5 py-1"
+										class="bg-surface-container text-on-surface hover:bg-pill-white hover:text-on-pill-white font-label text-label-sm cursor-pointer rounded-full px-3 py-1 transition-colors"
 									>
 										{copiedState === `link-${bill.id}` ? 'Copied!' : 'Receipt Link'}
 									</button>
 									<button
 										type="button"
 										onclick={() => loadBillForEdit(bill)}
-										class="bg-surface-card border-outline font-label text-label-sm text-on-surface hover:bg-surface-container-low cursor-pointer rounded border px-2.5 py-1"
+										class="bg-pill-white text-on-pill-white font-label text-label-sm cursor-pointer rounded-full px-3 py-1 transition-opacity hover:opacity-90"
 									>
 										Edit
 									</button>
@@ -1560,7 +1641,7 @@
 										<button
 											type="submit"
 											disabled={deletingBillId === bill.id}
-											class="text-on-expense-container hover:bg-expense-container font-label text-label-sm cursor-pointer rounded px-2 py-1"
+											class="text-coral hover:bg-coral hover:text-on-coral font-label text-label-sm cursor-pointer rounded-full px-3 py-1 transition-colors"
 										>
 											{deletingBillId === bill.id ? '…' : 'Delete'}
 										</button>
@@ -1569,14 +1650,14 @@
 							</div>
 
 							<!-- Settlement Checklist -->
-							<div class="border-outline grid grid-cols-1 gap-2 border-t pt-gutter-sm sm:grid-cols-2 lg:grid-cols-3">
+							<div class="border-outline-variant grid grid-cols-1 gap-2.5 border-t pt-3 sm:grid-cols-2 lg:grid-cols-3">
 								{#each billCalc.participants as p (p.participant.id)}
 									{#if p.participant.isMe}
-										<div class="bg-surface-container-high border-accent-orange/30 flex items-center justify-between rounded border px-3 py-2">
-											<span class="font-title text-title-md text-on-surface">
+										<div class="bg-marigold text-on-marigold flex items-center justify-between rounded-lg px-4 py-3">
+											<span class="font-title text-title-md">
 												{p.participant.name} (You)
 											</span>
-											<span class="font-headline text-headline-md text-on-surface tabular-nums">
+											<span class="font-headline text-headline-md tabular-nums">
 												{formatMoney(p.finalAmount, bill.currency)}
 											</span>
 										</div>
@@ -1599,7 +1680,12 @@
 													}
 												};
 											}}
-											class="bg-surface-card border-outline flex items-center justify-between gap-2 rounded border px-3 py-2"
+											class={cn(
+												'flex items-center justify-between gap-2 rounded-lg px-4 py-3',
+												p.participant.paid
+													? 'bg-sky-mint text-on-sky-mint'
+													: 'bg-surface-container text-on-surface border border-outline-variant'
+											)}
 										>
 											<input type="hidden" name="id" value={bill.id} />
 											<input type="hidden" name="participantId" value={p.participant.id} />
@@ -1613,21 +1699,19 @@
 
 											<div class="min-w-0">
 												<div class="flex items-center gap-1.5">
-													<span class="font-title text-title-md text-on-surface truncate">
+													<span class="font-title text-title-md truncate">
 														{p.participant.name}
 													</span>
 													<span
 														class={cn(
-															'font-label text-[11px] rounded-full px-2 py-0',
-															p.participant.paid
-																? 'bg-income-container text-on-income-container'
-																: 'bg-warning-container text-on-warning-container'
+															'font-label rounded-full px-2 py-0 text-[10px] uppercase',
+															p.participant.paid ? 'bg-income text-on-income' : 'bg-coral text-on-coral'
 														)}
 													>
 														{p.participant.paid ? 'Paid' : 'Unpaid'}
 													</span>
 												</div>
-												<span class="font-headline text-headline-md text-on-surface tabular-nums">
+												<span class="font-headline text-headline-md tabular-nums">
 													{formatMoney(p.finalAmount, bill.currency)}
 												</span>
 											</div>
@@ -1636,16 +1720,14 @@
 												type="submit"
 												disabled={busyToggleKey === toggleKey}
 												class={cn(
-													'font-label text-label-sm shrink-0 cursor-pointer rounded px-2.5 py-1.5 transition-opacity hover:opacity-90',
-													p.participant.paid
-														? 'bg-surface-container-low text-on-surface-variant'
-														: 'bg-income-container text-on-income-container'
+													'font-label text-label-sm shrink-0 cursor-pointer rounded-full px-3 py-1.5 transition-opacity hover:opacity-90',
+													p.participant.paid ? 'bg-ink text-on-surface' : 'bg-pill-white text-on-pill-white'
 												)}
 											>
 												{p.participant.paid
 													? 'Undo'
 													: bill.ledgerMode === 'full_advance' && recordReimbursement
-														? 'Record to Income'
+														? 'Record'
 														: 'Mark Paid'}
 											</button>
 										</form>

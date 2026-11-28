@@ -1,59 +1,99 @@
 @import 'tailwindcss';
 
 :root {
-	--background: #f8fafc;
-	--foreground: #0f172a;
-	--card: #ffffff;
-	--card-foreground: #0f172a;
-	--popover: #ffffff;
-	--popover-foreground: #0f172a;
-	--primary: #9c4400;
-	--primary-foreground: #ffffff;
-	--primary-container: #ffede5;
-	--on-primary-container: #542200;
-	--secondary: #f1f5f9;
-	--secondary-foreground: #0f172a;
-	--muted: #f1f5f9;
-	--muted-foreground: #475569;
-	--accent: #f1f5f9;
-	--accent-foreground: #0f172a;
-	--destructive: #f43f5e;
-	--destructive-foreground: #ffffff;
-	--border: #e2e8f0;
-	--input: #e2e8f0;
-	--ring: #9c4400;
-	--theme-accent: #e9762b;
-	--theme-accent-soft: #ffede5;
+	--surface: #161719;
+	--surface-container-low: #1d1e20;
+	--surface-card: #232528;
+	--surface-container: #2a2c30;
+	--surface-container-high: #2a2c30;
+	--on-surface: #f4f5f3;
+	--on-surface-variant: #9ca3af;
+	--outline: #34373c;
+	--outline-variant: #34373c;
+	--ink: #141517;
+
+	--coral: #f2644c;
+	--on-coral: #141517;
+	--marigold: #f5ba41;
+	--on-marigold: #141517;
+	--periwinkle: #5c6bf2;
+	--on-periwinkle: #ffffff;
+	--sky-mint: #a6dcef;
+	--on-sky-mint: #141517;
+	--sage-cream: #e6ece8;
+	--on-sage-cream: #141517;
+	--pill-white: #f4f5f3;
+	--on-pill-white: #141517;
+
+	/* Active theme defaults (Coral) */
+	--primary: #f2644c;
+	--primary-foreground: #141517;
+	--primary-container: #f2644c;
+	--on-primary-container: #141517;
+	--ring: #f2644c;
+	--theme-accent: #f2644c;
+	--theme-accent-soft: #3b1d19;
+
+	/* shadcn compatibility tokens */
+	--background: var(--surface);
+	--foreground: var(--on-surface);
+	--card: var(--surface-card);
+	--card-foreground: var(--on-surface);
+	--popover: var(--surface-container);
+	--popover-foreground: var(--on-surface);
+	--secondary: var(--surface-container);
+	--secondary-foreground: var(--on-surface);
+	--muted: var(--surface-container);
+	--muted-foreground: var(--on-surface-variant);
+	--accent: var(--surface-container);
+	--accent-foreground: var(--on-surface);
+	--destructive: #f2644c;
+	--destructive-foreground: #141517;
+	--border: var(--outline-variant);
+	--input: var(--outline-variant);
 }
 
+[data-theme='coral'],
 [data-theme='orange'] {
-	--primary: #9c4400;
-	--primary-foreground: #ffffff;
-	--primary-container: #ffede5;
-	--on-primary-container: #542200;
-	--ring: #9c4400;
-	--theme-accent: #e9762b;
-	--theme-accent-soft: #ffede5;
+	--primary: #f2644c;
+	--primary-foreground: #141517;
+	--primary-container: #f2644c;
+	--on-primary-container: #141517;
+	--ring: #f2644c;
+	--theme-accent: #f2644c;
+	--theme-accent-soft: #3b1d19;
 }
 
-[data-theme='sky'] {
-	--primary: #0369a1;
-	--primary-foreground: #ffffff;
-	--primary-container: #e7f2ff;
-	--on-primary-container: #003351;
-	--ring: #0369a1;
-	--theme-accent: #0284c7;
-	--theme-accent-soft: #e7f2ff;
-}
-
+[data-theme='marigold'],
 [data-theme='forest'] {
-	--primary: #047857;
+	--primary: #f5ba41;
+	--primary-foreground: #141517;
+	--primary-container: #f5ba41;
+	--on-primary-container: #141517;
+	--ring: #f5ba41;
+	--theme-accent: #f5ba41;
+	--theme-accent-soft: #3a2d12;
+}
+
+[data-theme='periwinkle'] {
+	--primary: #5c6bf2;
 	--primary-foreground: #ffffff;
-	--primary-container: #ecfdf5;
-	--on-primary-container: #003825;
-	--ring: #047857;
-	--theme-accent: #059669;
-	--theme-accent-soft: #ecfdf5;
+	--primary-container: #5c6bf2;
+	--on-primary-container: #ffffff;
+	--ring: #5c6bf2;
+	--theme-accent: #5c6bf2;
+	--theme-accent-soft: #1d2146;
+}
+
+[data-theme='sky-mint'],
+[data-theme='sky'] {
+	--primary: #a6dcef;
+	--primary-foreground: #141517;
+	--primary-container: #a6dcef;
+	--on-primary-container: #141517;
+	--ring: #a6dcef;
+	--theme-accent: #a6dcef;
+	--theme-accent-soft: #173440;
 }
 
 @theme inline {
@@ -78,145 +118,199 @@
 	--color-input: var(--input);
 	--color-ring: var(--ring);
 
-	/* Sanku Stitch Fintech Design System tokens */
+	/* Sanku Pop — Editorial Bento palette */
+	--color-surface: var(--surface);
+	--color-surface-bg: var(--surface);
+	--color-surface-container-low: var(--surface-container-low);
+	--color-surface-card: var(--surface-card);
+	--color-surface-container: var(--surface-container);
+	--color-surface-container-high: var(--surface-container-high);
+	--color-surface-border: var(--outline-variant);
+	--color-on-surface: var(--on-surface);
+	--color-on-surface-variant: var(--on-surface-variant);
+	--color-outline: var(--outline);
+	--color-outline-variant: var(--outline-variant);
+	--color-ink: var(--ink);
+
+	--color-coral: var(--coral);
+	--color-on-coral: var(--on-coral);
+	--color-marigold: var(--marigold);
+	--color-on-marigold: var(--on-marigold);
+	--color-periwinkle: var(--periwinkle);
+	--color-on-periwinkle: var(--on-periwinkle);
+	--color-sky-mint: var(--sky-mint);
+	--color-on-sky-mint: var(--on-sky-mint);
+	--color-sage-cream: var(--sage-cream);
+	--color-on-sage-cream: var(--on-sage-cream);
+	--color-pill-white: var(--pill-white);
+	--color-on-pill-white: var(--on-pill-white);
+
 	--color-accent-orange: var(--theme-accent);
-	--color-swatch-orange: #e9762b;
-	--color-theme-sky: #0284c7;
-	--color-theme-forest: #059669;
 	--color-on-primary: var(--primary-foreground);
 	--color-primary-container: var(--primary-container);
 	--color-on-primary-container: var(--on-primary-container);
-	--color-secondary-accent: #0369a1;
-	--color-secondary-container: #e7f2ff;
-	--color-on-secondary-container: #003351;
-	--color-tertiary: #047857;
-	--color-tertiary-container: #ecfdf5;
-	--color-on-tertiary-container: #003825;
+	--color-secondary-accent: var(--periwinkle);
+	--color-secondary-container: #1f2447;
+	--color-on-secondary-container: #c7d2fe;
+	--color-tertiary: var(--periwinkle);
+	--color-tertiary-container: #1f2447;
+	--color-on-tertiary-container: #c7d2fe;
 
-	--color-income: #10b981;
-	--color-income-container: #ecfdf5;
-	--color-on-income-container: #065f46;
-	--color-expense: #f43f5e;
-	--color-expense-container: #fff1f2;
-	--color-on-expense-container: #9f1239;
-	--color-warning: #d97706;
-	--color-warning-container: #fffbeb;
-	--color-on-warning-container: #92400e;
-	--color-error: #e11d48;
-	--color-error-container: #fff1f2;
-	--color-on-error-container: #9f1239;
+	/* Semantic financial tokens (Pop high-contrast + dark containers) */
+	--color-income: #34d399;
+	--color-on-income: #141517;
+	--color-income-container: #13382b;
+	--color-on-income-container: #6ee7b7;
 
-	--color-surface: #f8fafc;
-	--color-surface-bg: #f8fafc;
-	--color-surface-card: #ffffff;
-	--color-surface-border: #e2e8f0;
-	--color-surface-container-low: #f1f5f9;
-	--color-surface-container: #ffffff;
-	--color-surface-container-high: #f8fafc;
-	--color-on-surface: #0f172a;
-	--color-on-surface-variant: #475569;
-	--color-outline: #e2e8f0;
-	--color-outline-variant: #cbd5e1;
+	--color-expense: #f2644c;
+	--color-on-expense: #141517;
+	--color-expense-container: #3b1d19;
+	--color-on-expense-container: #fca596;
+
+	--color-warning: #f5ba41;
+	--color-on-warning: #141517;
+	--color-warning-container: #3a2d12;
+	--color-on-warning-container: #fde68a;
+
+	--color-error: #f2644c;
+	--color-error-container: #3b1d19;
+	--color-on-error-container: #fca596;
+
+	--color-theme-sky: #a6dcef;
+	--color-swatch-coral: #f2644c;
+	--color-swatch-marigold: #f5ba41;
+	--color-swatch-periwinkle: #5c6bf2;
+	--color-swatch-sky-mint: #a6dcef;
 
 	/* Typography families */
-	--font-display: 'Alata', sans-serif;
-	--font-headline: 'Alata', sans-serif;
-	--font-title: 'Instrument Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-	--font-body: 'Instrument Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-	--font-label: 'Instrument Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-	--font-sans: 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-	--font-mono: 'Spline Sans Mono', ui-monospace, SFMono-Regular, monospace;
+	--font-display: 'Barlow Condensed', sans-serif;
+	--font-headline: 'Barlow Condensed', sans-serif;
+	--font-title: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+	--font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+	--font-label: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+	--font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 
-	/* Stitch typography scale */
-	--text-display-lg: 36px;
-	--text-display-lg--line-height: 44px;
-	--text-display-lg--letter-spacing: -0.5px;
-	--text-display-lg--font-weight: 400;
+	/* Sanku Pop typography scale */
+	--text-display-lg: 42px;
+	--text-display-lg--line-height: 46px;
+	--text-display-lg--letter-spacing: -0.4px;
+	--text-display-lg--font-weight: 800;
 
-	--text-headline-lg: 24px;
-	--text-headline-lg--line-height: 32px;
-	--text-headline-lg--letter-spacing: -0.25px;
-	--text-headline-lg--font-weight: 400;
+	--text-display-lg-mobile: 28px;
+	--text-display-lg-mobile--line-height: 32px;
+	--text-display-lg-mobile--letter-spacing: -0.25px;
+	--text-display-lg-mobile--font-weight: 800;
+
+	--text-display-md: 32px;
+	--text-display-md--line-height: 36px;
+	--text-display-md--letter-spacing: -0.5px;
+	--text-display-md--font-weight: 800;
+
+	--text-display-md-mobile: 24px;
+	--text-display-md-mobile--line-height: 28px;
+	--text-display-md-mobile--letter-spacing: -0.3px;
+	--text-display-md-mobile--font-weight: 800;
+
+	--text-headline-lg: 26px;
+	--text-headline-lg--line-height: 30px;
+	--text-headline-lg--letter-spacing: 0.25px;
+	--text-headline-lg--font-weight: 700;
 
 	--text-headline-md: 20px;
-	--text-headline-md--line-height: 28px;
-	--text-headline-md--letter-spacing: -0.15px;
-	--text-headline-md--font-weight: 400;
+	--text-headline-md--line-height: 24px;
+	--text-headline-md--letter-spacing: 0.2px;
+	--text-headline-md--font-weight: 700;
 
-	--text-title-lg: 18px;
-	--text-title-lg--line-height: 26px;
-	--text-title-lg--letter-spacing: -0.1px;
-	--text-title-lg--font-weight: 600;
+	--text-title-lg: 17px;
+	--text-title-lg--line-height: 22px;
+	--text-title-lg--letter-spacing: -0.15px;
+	--text-title-lg--font-weight: 700;
 
 	--text-title-md: 15px;
-	--text-title-md--line-height: 22px;
-	--text-title-md--letter-spacing: 0px;
-	--text-title-md--font-weight: 600;
+	--text-title-md--line-height: 20px;
+	--text-title-md--font-weight: 700;
 
-	--text-body-lg: 15px;
-	--text-body-lg--line-height: 22px;
-	--text-body-lg--font-weight: 400;
+	--text-body-lg: 16px;
+	--text-body-lg--line-height: 24px;
+	--text-body-lg--font-weight: 500;
 
 	--text-body-md: 14px;
 	--text-body-md--line-height: 20px;
-	--text-body-md--font-weight: 400;
+	--text-body-md--font-weight: 500;
 
 	--text-body-sm: 12px;
 	--text-body-sm--line-height: 16px;
-	--text-body-sm--font-weight: 400;
+	--text-body-sm--font-weight: 500;
 
-	--text-label-lg: 14px;
-	--text-label-lg--line-height: 20px;
-	--text-label-lg--font-weight: 600;
+	--text-label-lg: 13px;
+	--text-label-lg--line-height: 18px;
+	--text-label-lg--letter-spacing: 0.2px;
+	--text-label-lg--font-weight: 700;
 
 	--text-label-md: 13px;
 	--text-label-md--line-height: 18px;
-	--text-label-md--font-weight: 500;
+	--text-label-md--font-weight: 600;
 
-	--text-label-sm: 12px;
-	--text-label-sm--line-height: 16px;
-	--text-label-sm--letter-spacing: 0.2px;
-	--text-label-sm--font-weight: 600;
+	--text-label-sm: 11px;
+	--text-label-sm--line-height: 14px;
+	--text-label-sm--letter-spacing: 0.4px;
+	--text-label-sm--font-weight: 700;
+
+	--text-mono-md: 13px;
+	--text-mono-md--line-height: 18px;
+	--text-mono-md--font-weight: 600;
 
 	--text-mono-sm: 12px;
 	--text-mono-sm--line-height: 16px;
 	--text-mono-sm--font-weight: 500;
 
-	/* Stitch spacing scale */
+	/* Sanku Pop spacing scale */
 	--spacing-gutter-xs: 4px;
 	--spacing-gutter-sm: 8px;
 	--spacing-gutter-md: 16px;
 	--spacing-gutter-lg: 24px;
 	--spacing-gutter-xl: 32px;
-	--spacing-section: 24px;
+	--spacing-section: 48px;
 	--spacing-page-margin: 24px;
 
-	/* Stitch shapes */
-	--radius-sm: 4px;
-	--radius-md: 12px;
-	--radius-lg: 16px;
-	--radius-xl: 16px;
+	/* Sanku Pop bento radii */
+	--radius-sm: 8px;
+	--radius-md: 18px;
+	--radius-lg: 24px;
+	--radius-xl: 28px;
 
 	/* Motion */
 	--transition-duration-state-change: 120ms;
-	--transition-duration-surface-enter: 200ms;
+	--transition-duration-surface-enter: 220ms;
 }
 
 @utility rounded {
-	border-radius: 8px;
+	border-radius: 14px;
 }
 
 @layer base {
 	html {
 		scroll-behavior: smooth;
+		color-scheme: dark;
 	}
 
 	body {
 		@apply bg-surface text-on-surface font-body antialiased;
 	}
 
+	select option,
+	select optgroup {
+		background-color: var(--surface-card);
+		color: var(--on-surface);
+	}
+
 	* {
-		@apply border-outline;
+		@apply border-outline-variant;
+	}
+
+	.tabular-nums {
+		font-variant-numeric: tabular-nums;
 	}
 
 	.material-symbols-outlined {
@@ -231,7 +325,7 @@
 		vertical-align: middle;
 		font-variation-settings:
 			'FILL' 0,
-			'wght' 400,
+			'wght' 500,
 			'GRAD' 0,
 			'opsz' 20;
 	}

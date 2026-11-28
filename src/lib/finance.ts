@@ -29,6 +29,93 @@ export const DEFAULT_CURRENCY = 'USD';
 
 const ZERO_DECIMAL_CURRENCIES = new Set(['IDR', 'JPY', 'VND', 'KRW']);
 
+// Reference spot rates vs 1 USD as offline/network fallback for instant multi-currency UX
+const FALLBACK_PER_USD: Record<string, number> = {
+	USD: 1,
+	IDR: 16000,
+	EUR: 0.92,
+	GBP: 0.79,
+	SGD: 1.34,
+	MYR: 4.45,
+	JPY: 152,
+	AUD: 1.53,
+	CAD: 1.4,
+	INR: 84.5,
+	PHP: 58.5,
+	THB: 34.5,
+	VND: 25400,
+	CNY: 7.25,
+	KRW: 1395,
+	BRL: 5.8
+};
+
+export function isZeroDecimalCurrency(currency: string): boolean {
+	return ZERO_DECIMAL_CURRENCIES.has(currency);
+}
+
+export function getFallbackExchangeRate(fromCurrency: string, toCurrency: string): number {
+	if (!fromCurrency || !toCurrency || fromCurrency === toCurrency) return 1;
+	const fromPerUsd = FALLBACK_PER_USD[fromCurrency] ?? 1;
+	const toPerUsd = FALLBACK_PER_USD[toCurrency] ?? 1;
+	const raw = toPerUsd / fromPerUsd;
+	if (raw >= 100) return Math.round(raw);
+	if (raw >= 10) return Math.round(raw * 100) / 100;
+	return Math.round(raw * 10000) / 10000;
+}
+
+export function convertCurrencyAmount(
+	originalAmount: number,
+	exchangeRate: number,
+	targetCurrency: string
+): number {
+	if (!Number.isFinite(originalAmount) || !Number.isFinite(exchangeRate)) return 0;
+	const raw = originalAmount * exchangeRate;
+	if (isZeroDecimalCurrency(targetCurrency)) {
+		return Math.round(raw);
+	}
+	return Math.round(raw * 100) / 100;
+}
+
+export function formatEditableAmount(
+	raw: string | number | undefined | null,
+	currency: string
+): string {
+	if (raw === undefined || raw === null || raw === '') return '';
+	if (isZeroDecimalCurrency(currency)) {
+		return formatNumberWithDots(raw);
+	}
+	const num = typeof raw === 'number' ? raw : parseFlexibleAmount(raw, currency);
+	if (!Number.isFinite(num) || num === 0) return '';
+	return String(Math.round(num * 100) / 100);
+}
+
+export function parseFlexibleAmount(
+	raw: string | number | undefined | null,
+	currency?: string
+): number {
+	if (raw === undefined || raw === null || raw === '') return 0;
+	if (typeof raw === 'number') return Number.isFinite(raw) ? raw : 0;
+	const clean = String(raw).trim().replace(/\s+/g, '');
+	if (!clean) return 0;
+
+	if (!currency || isZeroDecimalCurrency(currency)) {
+		return parseNumberWithDots(clean);
+	}
+
+	// For decimal currencies (USD, SGD, EUR, etc.), treat single trailing `.d{1,2}` as decimal separator
+	if (/^\d[\d,]*\.\d{1,2}$/.test(clean)) {
+		return Number(clean.replace(/,/g, '')) || 0;
+	}
+	if (/^\d[\d.]*,\d{1,2}$/.test(clean)) {
+		const [intP, decP] = clean.split(',');
+		return Number(`${intP.replace(/\./g, '')}.${decP}`) || 0;
+	}
+	if (/^\d+(\.\d+)?$/.test(clean)) {
+		return Number(clean) || 0;
+	}
+	return parseNumberWithDots(clean);
+}
+
 export function isSupportedCurrency(code: string | null | undefined): code is string {
 	return CURRENCIES.some((currency) => currency.code === code);
 }

@@ -38,15 +38,15 @@ describe('calculateSplitBill', () => {
 			merchant: 'Ayam Geprek Mantap',
 			currency: 'IDR',
 			participants: [
-				{ id: 'me', name: 'Alif', isMe: true, color: '#0f172a', paid: true },
-				{ id: 'budi', name: 'Budi', isMe: false, color: '#0284c7', paid: false },
+				{ id: 'me', name: 'Raka', isMe: true, color: '#0f172a', paid: true },
+				{ id: 'dimas', name: 'Dimas', isMe: false, color: '#0284c7', paid: false },
 				{ id: 'siti', name: 'Siti', isMe: false, color: '#059669', paid: true }
 			],
 			items: [
-				// Alif: 45,000 - 5,000 menu discount = 40,000
+				// Raka: 45,000 - 5,000 menu discount = 40,000
 				{ id: 'i1', name: 'Paket Ayam Mozza', price: 45000, qty: 1, itemDiscount: 5000, shares: { me: 1 } },
-				// Budi: 60,000
-				{ id: 'i2', name: 'Ayam Jumbo + Es Teh', price: 30000, qty: 2, itemDiscount: 0, shares: { budi: 1 } },
+				// Dimas: 60,000
+				{ id: 'i2', name: 'Ayam Jumbo + Es Teh', price: 30000, qty: 2, itemDiscount: 0, shares: { dimas: 1 } },
 				// Siti: 20,000
 				{ id: 'i3', name: 'Nasi Telor', price: 20000, qty: 1, itemDiscount: 0, shares: { siti: 1 } },
 				// Shared equally by all 3: 30,000 -> 10,000 each
@@ -56,7 +56,7 @@ describe('calculateSplitBill', () => {
 					price: 30000,
 					qty: 1,
 					itemDiscount: 0,
-					shares: { me: 1, budi: 1, siti: 1 }
+					shares: { me: 1, dimas: 1, siti: 1 }
 				}
 			],
 			discounts: [
@@ -94,7 +94,7 @@ describe('calculateSplitBill', () => {
 				{ id: 'f2', label: 'Biaya Layanan', mode: 'fixed', value: 6000, kind: 'service', allocation: 'equal' }
 			],
 			roundingStep: 0,
-			paymentInfo: 'BCA 1234567890 a/n Alif',
+			paymentInfo: 'BCA 1234567890 a/n Raka',
 			categoryId: '',
 			account: 'Main bank',
 			ledgerMode: 'my_share'
@@ -102,7 +102,7 @@ describe('calculateSplitBill', () => {
 
 		const result = calculateSplitBill(bill);
 
-		// Menu totals: Alif 50k, Budi 70k, Siti 30k => total 150k
+		// Menu totals: Raka 50k, Dimas 70k, Siti 30k => total 150k
 		assert.equal(result.itemsGrossSubtotal, 155000);
 		assert.equal(result.itemsMenuDiscountTotal, 5000);
 		assert.equal(result.assignedItemsSubtotal, 150000);
@@ -122,16 +122,16 @@ describe('calculateSplitBill', () => {
 		assert.equal(result.grandTotal, 111000);
 
 		// Proportional item discount = 30% of each person's subtotal:
-		// Alif: 50,000 - 15,000 + 2,000 = 37,000
-		// Budi: 70,000 - 21,000 + 2,000 = 51,000
+		// Raka: 50,000 - 15,000 + 2,000 = 37,000
+		// Dimas: 70,000 - 21,000 + 2,000 = 51,000
 		// Siti: 30,000 - 9,000 + 2,000 = 23,000
 		const byId = new Map(result.participants.map((p) => [p.participant.id, p]));
 		assert.equal(byId.get('me')?.finalAmount, 37000);
-		assert.equal(byId.get('budi')?.finalAmount, 51000);
+		assert.equal(byId.get('dimas')?.finalAmount, 51000);
 		assert.equal(byId.get('siti')?.finalAmount, 23000);
 
 		assert.equal(result.myShare, 37000);
-		// Only Budi is unpaid
+		// Only Dimas is unpaid
 		assert.equal(result.unpaidCount, 1);
 		assert.equal(result.outstandingAmount, 51000);
 		assert.equal(result.status, 'open');
@@ -144,7 +144,7 @@ describe('calculateSplitBill', () => {
 			merchant: 'Kopi',
 			currency: 'IDR',
 			participants: [
-				{ id: 'me', name: 'Alif', isMe: true, color: '#0f172a', paid: true },
+				{ id: 'me', name: 'Raka', isMe: true, color: '#0f172a', paid: true },
 				{ id: 'a', name: 'Andi', isMe: false, color: '#0284c7', paid: true },
 				{ id: 'b', name: 'Bagas', isMe: false, color: '#059669', paid: true }
 			],
@@ -189,7 +189,7 @@ describe('calculateSplitBill', () => {
 			title: 'Test Unassigned',
 			merchant: '',
 			currency: 'IDR',
-			participants: [{ id: 'me', name: 'Alif', isMe: true, color: '#0f172a', paid: true }],
+			participants: [{ id: 'me', name: 'Raka', isMe: true, color: '#0f172a', paid: true }],
 			items: [
 				{ id: 'i1', name: 'Belum dipilih', price: 25000, qty: 1, itemDiscount: 0, shares: {} }
 			],
@@ -219,7 +219,7 @@ describe('sharing: WhatsApp formatter & stateless receipt URL codec', () => {
 			merchant: 'Fore Coffee',
 			currency: 'IDR',
 			participants: [
-				{ id: 'me', name: 'Alif', isMe: true, color: '#0f172a', paid: true },
+				{ id: 'me', name: 'Raka', isMe: true, color: '#0f172a', paid: true },
 				{ id: 'rara', name: 'Rara', isMe: false, color: '#db2777', paid: false }
 			],
 			items: [
@@ -233,7 +233,7 @@ describe('sharing: WhatsApp formatter & stateless receipt URL codec', () => {
 				{ id: 'f1', label: 'Ongkir', mode: 'fixed', value: 10000, kind: 'delivery', allocation: 'equal' }
 			],
 			roundingStep: 0,
-			paymentInfo: 'BCA 9876543210 a/n Alif',
+			paymentInfo: 'BCA 9876543210 a/n Raka',
 			categoryId: '',
 			account: '',
 			ledgerMode: 'my_share'
@@ -249,7 +249,7 @@ describe('sharing: WhatsApp formatter & stateless receipt URL codec', () => {
 		assert.equal(decoded.merchant, 'Fore Coffee');
 		assert.equal(decoded.grandTotal, 60000);
 		assert.equal(decoded.totalDiscount, 20000);
-		assert.equal(decoded.paymentInfo, 'BCA 9876543210 a/n Alif');
+		assert.equal(decoded.paymentInfo, 'BCA 9876543210 a/n Raka');
 		assert.equal(decoded.participants.length, 2);
 		assert.equal(decoded.participants[1]?.name, 'Rara');
 		assert.equal(decoded.participants[1]?.finalAmount, 30000);
@@ -257,7 +257,7 @@ describe('sharing: WhatsApp formatter & stateless receipt URL codec', () => {
 		const wa = formatWhatsAppSummary(bill, calc, `https://sanku.app/s?d=${token}`);
 		assert.match(wa, /Beli Rame-rame: Kopi Sore Tim \(Fore Coffee\)/);
 		assert.match(wa, /Rara/);
-		assert.match(wa, /BCA 9876543210 a\/n Alif/);
+		assert.match(wa, /BCA 9876543210 a\/n Raka/);
 		assert.match(wa, /https:\/\/sanku\.app\/s\?d=/);
 
 		// Invalid tokens safely return null

@@ -6,7 +6,10 @@ export type Transaction = {
 	type: TransactionType;
 	categoryId: string;
 	description: string;
-	amount: number;
+	amount: number; // Normalized amount in user's primary currency
+	currency?: string; // Original currency code (if different from primary)
+	originalAmount?: number; // Original amount entered in `currency`
+	exchangeRate?: number; // Conversion rate into primary currency
 	account: string;
 	notes: string;
 	createdAt: string;
@@ -23,7 +26,7 @@ export type Category = {
 	createdAt: string;
 };
 
-export type ThemeName = 'orange' | 'sky' | 'forest';
+export type ThemeName = 'coral' | 'marigold' | 'periwinkle' | 'sky-mint';
 
 export type FinanceSettings = {
 	currency: string;
@@ -105,6 +108,9 @@ export type TransactionInput = {
 	categoryId: string;
 	description: string;
 	amount: number;
+	currency?: string;
+	originalAmount?: number;
+	exchangeRate?: number;
 	account: string;
 	notes: string;
 };

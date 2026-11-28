@@ -2,18 +2,25 @@
 	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import type { Category, TransactionType, Wallet } from '#lib/types.ts';
-	import { formatMoney } from '#lib/finance.ts';
+	import {
+		CURRENCIES,
+		convertCurrencyAmount,
+		formatMoney,
+		getFallbackExchangeRate
+	} from '#lib/finance.ts';
 	import {
 		matchCategoryId,
 		parseStatementFile,
 		type ParsedStatementRow
 	} from '#lib/statement-parser.ts';
 	import { cn } from '#lib/utils.ts';
+	import { fetchClientFxRate } from '#lib/fx-client.ts';
 	import { Button } from '#lib/components/ui/button/index.ts';
 	import { Badge } from '#lib/components/ui/badge/index.ts';
 	import { Input } from '#lib/components/ui/input/index.ts';
 	import { Label } from '#lib/components/ui/label/index.ts';
 	import * as Table from '#lib/components/ui/table/index.ts';
+	import * as Select from '#lib/components/ui/select/index.ts';
 	import CustomSelect from './CustomSelect.svelte';
 
 	let {
@@ -33,6 +40,44 @@
 	let targetAccount = $state(untrack(() => wallets[0]?.name ?? 'Main bank'));
 	let defaultCategoryId = $state('');
 	let statementYear = $state(new Date().getFullYear());
+	let statementCurrency = $state(untrack(() => currency));
+	let exchangeRateInput = $state('1');
+	let fxLoading = $state(false);
+
+	let isForeignCurrency = $derived(statementCurrency !== currency);
+	let exchangeRate = $derived.by(() => {
+		if (!isForeignCurrency) return 1;
+		const n = Number(String(exchangeRateInput).replace(',', '.'));
+		return Number.isFinite(n) && n > 0 ? n : 1;
+	});
+
+	async function fetchStatementFx(fromCode: string) {
+		if (fromCode === currency) {
+			exchangeRateInput = '1';
+			return;
+		}
+		fxLoading = true;
+		try {
+			const data = await fetchClientFxRate(fromCode, currency);
+			if (data && data.rate > 0) {
+				exchangeRateInput = String(data.rate);
+			}
+		} catch {
+			// Ignore network errors; keep fallback rate
+		} finally {
+			fxLoading = false;
+		}
+	}
+
+	function handleStatementCurrencyChange(next: string) {
+		statementCurrency = next;
+		if (next === currency) {
+			exchangeRateInput = '1';
+		} else {
+			exchangeRateInput = String(getFallbackExchangeRate(next, currency));
+			void fetchStatementFx(next);
+		}
+	}
 
 	let fileInputEl = $state<HTMLInputElement | null>(null);
 	let isDragging = $state(false);
@@ -167,7 +212,12 @@
 				type: r.type,
 				categoryId: r.categoryId,
 				description: r.description,
-				amount: r.amount,
+				amount: isForeignCurrency
+					? convertCurrencyAmount(r.amount, exchangeRate, currency)
+					: r.amount,
+				currency: isForeignCurrency ? statementCurrency : undefined,
+				originalAmount: isForeignCurrency ? r.amount : undefined,
+				exchangeRate: isForeignCurrency ? exchangeRate : undefined,
 				account: r.account || targetAccount,
 				notes: r.notes
 			}))
@@ -178,26 +228,29 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-	class="bg-on-surface/40 fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-gutter-md"
+	class="bg-ink/80 fixed inset-0 z-50 flex items-center justify-center p-3 backdrop-blur-[2px] sm:p-gutter-md"
 	role="presentation"
 	onclick={(event) => {
 		if (event.target === event.currentTarget && !importing) onclose();
 	}}
 >
 	<div
-		class="bg-surface-card text-on-surface border-outline flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border shadow-xl"
+		class="bg-surface-card text-on-surface border-outline-variant flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border shadow-2xl"
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="import-modal-title"
 	>
 		<!-- Header -->
-		<header class="border-outline flex shrink-0 items-center justify-between gap-3 border-b px-gutter-lg py-gutter-md">
+		<header class="border-outline-variant flex shrink-0 items-center justify-between gap-3 border-b px-gutter-lg py-gutter-md">
 			<div>
-				<h2 id="import-modal-title" class="font-title text-title-lg text-on-surface">
-					Import Bank e-Statement
+				<span class="bg-coral text-on-coral font-label text-label-sm inline-block rounded-full px-2.5 py-0.5 uppercase">
+					E-STATEMENT PARSER
+				</span>
+				<h2 id="import-modal-title" class="font-headline text-headline-md text-on-surface mt-1 uppercase">
+					Import Bank e-Statement (PDF / CSV)
 				</h2>
 				<p class="font-body text-body-sm text-on-surface-variant">
-					Auto-detects Krom, BCA, Mandiri, BNI, BRI, Jago &amp; SeaBank PDF/CSV mutasi
+					Auto-detects Krom, BCA, Mandiri, BNI, BRI, Jago &amp; SeaBank mutasi directly in your browser.
 				</p>
 			</div>
 			<button
@@ -205,77 +258,64 @@
 				aria-label="Close dialog"
 				onclick={onclose}
 				disabled={importing}
-				class="border-outline text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded border transition-colors"
+				class="bg-pill-white text-on-pill-white inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full transition-opacity hover:opacity-90"
 			>
 				<span class="material-symbols-outlined text-[18px]" aria-hidden="true">close</span>
 			</button>
 		</header>
 
-		<div class="flex min-h-0 flex-1 flex-col gap-gutter-md overflow-y-auto p-gutter-lg">
-			<!-- Stitch 3-Step Stepper -->
-			<div class="grid grid-cols-3 gap-gutter-sm">
+		<div class="gap-gutter-md flex min-h-0 flex-1 flex-col overflow-y-auto p-gutter-lg">
+			<!-- Editorial 3-Step Stepper -->
+			<div class="gap-gutter-sm grid grid-cols-1 sm:grid-cols-3">
 				<div
 					class={cn(
-						'flex items-center gap-2 rounded border p-2.5',
-						rows.length === 0
-							? 'bg-primary-container/60 border-accent-orange/40'
-							: 'bg-income-container/50 border-income/30'
+						'flex items-center gap-2 rounded-full px-3.5 py-2',
+						rows.length === 0 ? 'bg-coral text-on-coral' : 'bg-income text-on-income'
 					)}
 				>
-					<span
-						class={cn(
-							'font-label text-label-sm flex size-5 shrink-0 items-center justify-center rounded-full',
-							rows.length === 0 ? 'bg-primary text-on-primary' : 'bg-income text-white'
-						)}
-					>
+					<span class="bg-ink text-on-surface font-mono text-mono-sm flex size-5 shrink-0 items-center justify-center rounded-full">
 						1
 					</span>
-					<span class="font-label text-label-sm text-on-surface truncate">Upload PDF/CSV</span>
+					<span class="font-label text-label-sm truncate uppercase">Upload PDF/CSV</span>
 				</div>
 				<div
 					class={cn(
-						'flex items-center gap-2 rounded border p-2.5',
+						'flex items-center gap-2 rounded-full px-3.5 py-2',
 						rows.length > 0 && !importing
-							? 'bg-primary-container/60 border-accent-orange/40'
-							: 'bg-surface-container-high border-outline'
+							? 'bg-marigold text-on-marigold'
+							: 'bg-surface-container text-on-surface-variant'
 					)}
 				>
 					<span
 						class={cn(
-							'font-label text-label-sm flex size-5 shrink-0 items-center justify-center rounded-full',
-							rows.length > 0 && !importing
-								? 'bg-primary text-on-primary'
-								: 'bg-surface-container-low text-on-surface-variant'
+							'font-mono text-mono-sm flex size-5 shrink-0 items-center justify-center rounded-full',
+							rows.length > 0 && !importing ? 'bg-ink text-on-surface' : 'bg-surface text-on-surface-variant'
 						)}
 					>
 						2
 					</span>
-					<span class="font-label text-label-sm text-on-surface-variant truncate">Preview &amp; Match</span>
+					<span class="font-label text-label-sm truncate uppercase">Preview &amp; Match</span>
 				</div>
 				<div
 					class={cn(
-						'flex items-center gap-2 rounded border p-2.5',
-						importing
-							? 'bg-primary-container/60 border-accent-orange/40'
-							: 'bg-surface-container-high border-outline'
+						'flex items-center gap-2 rounded-full px-3.5 py-2',
+						importing ? 'bg-sky-mint text-on-sky-mint' : 'bg-surface-container text-on-surface-variant'
 					)}
 				>
 					<span
 						class={cn(
-							'font-label text-label-sm flex size-5 shrink-0 items-center justify-center rounded-full',
-							importing
-								? 'bg-primary text-on-primary'
-								: 'bg-surface-container-low text-on-surface-variant'
+							'font-mono text-mono-sm flex size-5 shrink-0 items-center justify-center rounded-full',
+							importing ? 'bg-ink text-on-surface' : 'bg-surface text-on-surface-variant'
 						)}
 					>
 						3
 					</span>
-					<span class="font-label text-label-sm text-on-surface-variant truncate">Sync to Sheet</span>
+					<span class="font-label text-label-sm truncate uppercase">Sync to Sheet</span>
 				</div>
 			</div>
 
 			<!-- Settings Bar -->
-			<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
 				<div class="space-y-1.5">
 					<Label>Target Account / Wallet</Label>
 					<CustomSelect
@@ -297,23 +337,82 @@
 				</div>
 
 				<div class="space-y-1.5">
-					<Label for="statement-year">Statement Year (for DD/MM)</Label>
+					<Label for="statement-currency">Statement Currency</Label>
+					<Select.Root
+						type="single"
+						value={statementCurrency}
+						onValueChange={handleStatementCurrencyChange}
+					>
+						<Select.Trigger
+							id="statement-currency"
+							size="sm"
+							class="h-9 rounded px-3 text-xs font-semibold"
+						>
+							{statementCurrency} · {CURRENCIES.find((c) => c.code === statementCurrency)?.label ?? ''}
+						</Select.Trigger>
+						<Select.Content>
+							{#each CURRENCIES as c (c.code)}
+								<Select.Item value={c.code} label={`${c.code} · ${c.label}`}>
+									{c.code} · {c.label}
+								</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
+				</div>
+
+				<div class="space-y-1.5">
+					<Label for="statement-year">Statement Year (DD/MM)</Label>
 					<Input
 						id="statement-year"
 						type="number"
 						min={2000}
 						max={2100}
 						bind:value={statementYear}
-						class="h-8 text-xs"
+						class="h-9 text-xs"
 					/>
 				</div>
 			</div>
 
+			{#if isForeignCurrency}
+				<div class="bg-surface-container border-outline-variant flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-2.5">
+					<div class="flex flex-wrap items-center gap-2 text-xs">
+						<span class="bg-marigold text-on-marigold font-label rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase">
+							Multi-Currency
+						</span>
+						<span class="text-on-surface-variant">
+							1 {statementCurrency} =
+						</span>
+						<input
+							type="text"
+							inputmode="decimal"
+							aria-label="Statement exchange rate"
+							bind:value={exchangeRateInput}
+							class="border-outline-variant bg-surface text-on-surface h-7 w-24 rounded border px-2 text-right font-mono text-xs font-bold outline-none focus:border-primary"
+						/>
+						<span class="font-mono text-on-surface font-bold">{currency}</span>
+						<button
+							type="button"
+							onclick={() => fetchStatementFx(statementCurrency)}
+							disabled={fxLoading}
+							class="bg-ink text-on-surface font-label inline-flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold"
+						>
+							<span class={cn('material-symbols-outlined text-[13px]', fxLoading && 'animate-spin')} aria-hidden="true">
+								refresh
+							</span>
+							<span>{fxLoading ? 'Kurs…' : 'Kurs Live'}</span>
+						</button>
+					</div>
+					<span class="font-body text-on-surface-variant text-xs">
+						Baris akan otomatis dikonversi ke {currency}
+					</span>
+				</div>
+			{/if}
+
 			<!-- Dropzone -->
 			<div
 				class={cn(
-					'border-outline-variant bg-surface-container-high flex flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed px-4 py-7 text-center transition-colors',
-					isDragging && 'border-primary bg-primary-container/30'
+					'border-outline-variant bg-surface-container flex flex-col items-center justify-center gap-2.5 rounded-xl border-2 border-dashed px-4 py-7 text-center transition-colors',
+					isDragging && 'border-coral bg-coral/10'
 				)}
 				role="region"
 				aria-label="Upload e-Statement"
@@ -332,8 +431,8 @@
 					onchange={handleFileChange}
 				/>
 
-				<span class="material-symbols-outlined text-accent-orange text-[32px]" aria-hidden="true">
-					upload_file
+				<span class="bg-coral text-on-coral flex size-12 items-center justify-center rounded-full">
+					<span class="material-symbols-outlined text-[24px]" aria-hidden="true">upload_file</span>
 				</span>
 
 				<div class="space-y-0.5">
@@ -341,7 +440,7 @@
 						{#if parsing}
 							Parsing statement in browser…
 						{:else if fileName}
-							Loaded: <span class="text-primary">{fileName}</span>
+							Loaded: <span class="text-marigold">{fileName}</span>
 						{:else}
 							Drop your e-Statement PDF or CSV here
 						{/if}
@@ -352,7 +451,7 @@
 				</div>
 
 				<Button
-					variant="outline"
+					variant="pill-white"
 					size="sm"
 					class="mt-1"
 					onclick={() => fileInputEl?.click()}
@@ -363,7 +462,7 @@
 			</div>
 
 			{#if parseWarnings.length > 0}
-				<div class="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-800">
+				<div class="bg-marigold text-on-marigold rounded-lg px-4 py-3 text-xs font-semibold">
 					{#each parseWarnings as warning (warning)}
 						<p>{warning}</p>
 					{/each}
@@ -371,8 +470,8 @@
 			{/if}
 
 			{#if error}
-				<div class="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-medium text-rose-700" role="alert">
-					<span class="font-bold">!</span>
+				<div class="bg-coral text-on-coral flex items-center gap-2 rounded-lg px-4 py-3 text-xs font-semibold" role="alert">
+					<span class="bg-ink text-on-surface flex size-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold">!</span>
 					<p>{error}</p>
 				</div>
 			{/if}
@@ -382,37 +481,37 @@
 				<div class="space-y-2.5">
 					<div class="flex flex-wrap items-center justify-between gap-2 text-xs">
 						<div class="flex flex-wrap items-center gap-2">
-							<Badge variant="secondary">{detectedBank}</Badge>
-							<span class="text-muted-foreground tabular-nums">
-								<strong class="text-foreground">{selectedRows.length}</strong> of {rows.length} selected
+							<Badge variant="sky-mint">{detectedBank}</Badge>
+							<span class="text-on-surface-variant tabular-nums">
+								<strong class="text-on-surface">{selectedRows.length}</strong> of {rows.length} selected
 							</span>
 						</div>
 
-						<div class="flex flex-wrap items-center gap-3 tabular-nums">
-							<span class="font-medium text-emerald-700">
-								Inflow: +{formatMoney(previewTotals.inflow, currency)}
+						<div class="flex flex-wrap items-center gap-2 tabular-nums">
+							<span class="bg-income text-on-income font-mono rounded-full px-2.5 py-0.5 font-bold">
+								In: +{formatMoney(previewTotals.inflow, statementCurrency)}
 							</span>
-							<span class="text-foreground font-medium">
-								Outflow: −{formatMoney(previewTotals.outflow, currency)}
+							<span class="bg-coral text-on-coral font-mono rounded-full px-2.5 py-0.5 font-bold">
+								Out: −{formatMoney(previewTotals.outflow, statementCurrency)}
 							</span>
 						</div>
 					</div>
 
-					<div class="border-border max-h-[320px] overflow-auto rounded-xl border">
+					<div class="border-outline-variant max-h-[320px] overflow-auto rounded-lg border">
 						<Table.Root>
 							<Table.Header>
-								<Table.Row class="bg-muted/50 hover:bg-muted/50">
+								<Table.Row>
 									<Table.Head class="w-10 text-center">
 										<input
 											type="checkbox"
 											checked={allSelected}
 											onchange={toggleSelectAll}
 											aria-label="Select all transactions"
-											class="accent-primary size-3.5 cursor-pointer rounded"
+											class="accent-coral size-3.5 cursor-pointer rounded"
 										/>
 									</Table.Head>
 									<Table.Head class="w-[128px]">Date</Table.Head>
-									<Table.Head class="w-[92px]">Type</Table.Head>
+									<Table.Head class="w-[96px]">Type</Table.Head>
 									<Table.Head class="min-w-[180px]">Description</Table.Head>
 									<Table.Head class="w-[155px]">Category</Table.Head>
 									<Table.Head class="w-[130px] text-right">Amount</Table.Head>
@@ -421,13 +520,13 @@
 							<Table.Body>
 								{#each rows as row, index (row.id)}
 									{@const catList = row.type === 'income' ? incomeCategories : expenseCategories}
-									<Table.Row class={cn(!row.selected && 'opacity-50')}>
+									<Table.Row class={cn(!row.selected && 'opacity-45')}>
 										<Table.Cell class="text-center">
 											<input
 												type="checkbox"
 												bind:checked={row.selected}
 												aria-label={`Select ${row.description}`}
-												class="accent-primary size-3.5 cursor-pointer rounded"
+												class="accent-coral size-3.5 cursor-pointer rounded"
 											/>
 										</Table.Cell>
 
@@ -435,7 +534,7 @@
 											<input
 												type="date"
 												bind:value={row.date}
-												class="border-input bg-card h-7 w-full rounded border px-1.5 text-xs tabular-nums outline-none"
+												class="border-outline-variant bg-surface text-on-surface h-8 w-full rounded border px-2 text-xs tabular-nums outline-none"
 											/>
 										</Table.Cell>
 
@@ -444,10 +543,8 @@
 												type="button"
 												onclick={() => toggleRowType(index)}
 												class={cn(
-													'cursor-pointer rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors',
-													row.type === 'income'
-														? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-														: 'border-rose-200 bg-rose-50 text-rose-700'
+													'cursor-pointer rounded-full px-2.5 py-1 text-[11px] font-bold transition-opacity hover:opacity-90',
+													row.type === 'income' ? 'bg-income text-on-income' : 'bg-coral text-on-coral'
 												)}
 												title="Click to toggle Income / Expense"
 											>
@@ -460,20 +557,29 @@
 												type="text"
 												bind:value={row.description}
 												maxlength={160}
-												class="border-input bg-card h-7 w-full min-w-[160px] rounded border px-2 text-xs outline-none"
+												class="border-outline-variant bg-surface text-on-surface h-8 w-full min-w-[160px] rounded border px-2.5 text-xs outline-none"
 											/>
 										</Table.Cell>
 
 										<Table.Cell>
-											<select
-												bind:value={row.categoryId}
-												class="border-input bg-card h-7 w-full rounded border px-1.5 text-xs outline-none"
-											>
-												<option value="">Uncategorized</option>
-												{#each catList as cat (cat.id)}
-													<option value={cat.id}>{cat.emoji} {cat.name}</option>
-												{/each}
-											</select>
+											{@const activeRowCat = catList.find((c) => c.id === row.categoryId)}
+											<Select.Root type="single" bind:value={row.categoryId}>
+												<Select.Trigger
+													aria-label="Row category"
+													size="xs"
+													class="bg-surface min-w-[140px]"
+												>
+													{activeRowCat ? `${activeRowCat.emoji} ${activeRowCat.name}` : 'Uncategorized'}
+												</Select.Trigger>
+												<Select.Content>
+													<Select.Item value="" label="Uncategorized">Uncategorized</Select.Item>
+													{#each catList as cat (cat.id)}
+														<Select.Item value={cat.id} label={`${cat.emoji} ${cat.name}`}>
+															{cat.emoji} {cat.name}
+														</Select.Item>
+													{/each}
+												</Select.Content>
+											</Select.Root>
 										</Table.Cell>
 
 										<Table.Cell class="text-right">
@@ -483,8 +589,8 @@
 												min="0.01"
 												bind:value={row.amount}
 												class={cn(
-													'border-input bg-card h-7 w-28 rounded border px-2 text-right text-xs font-semibold tabular-nums outline-none',
-													row.type === 'income' ? 'text-emerald-700' : 'text-foreground'
+													'border-outline-variant bg-surface h-8 w-28 rounded border px-2.5 text-right font-mono text-xs font-bold tabular-nums outline-none',
+													row.type === 'income' ? 'text-income' : 'text-coral'
 												)}
 											/>
 										</Table.Cell>
@@ -501,7 +607,7 @@
 		<form
 			method="POST"
 			action="?/importTransactions"
-			class="border-border bg-card flex shrink-0 flex-col gap-3 border-t px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6"
+			class="border-outline-variant bg-surface-container-low flex shrink-0 flex-col gap-3 border-t px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6"
 			use:enhance={({ cancel }) => {
 				if (selectedRows.length === 0) {
 					error = 'Select at least one row to import.';
@@ -536,8 +642,8 @@
 			<input type="hidden" name="transactionsJson" value={importPayloadJson} />
 			<input type="hidden" name="defaultAccount" value={targetAccount} />
 
-			<p class="text-muted-foreground text-xs">
-				Writes directly to your Google Sheet <code class="bg-muted rounded px-1 py-0.5 font-mono">Transactions</code> tab.
+			<p class="font-body text-body-sm text-on-surface-variant">
+				Writes directly to your Google Sheet <code class="bg-ink text-on-surface rounded px-1.5 py-0.5 font-mono">Transactions</code> tab.
 			</p>
 
 			<div class="flex items-center justify-end gap-2">

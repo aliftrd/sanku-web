@@ -2,6 +2,7 @@
 	import type { Category, Transaction } from '#lib/types.ts';
 	import { formatDate, formatMoney, formatShortDate, getTransferDestination } from '#lib/finance.ts';
 	import { cn } from '#lib/utils.ts';
+	import * as Select from '#lib/components/ui/select/index.ts';
 
 	type SortColumn = 'date' | 'description' | 'category' | 'account' | 'amount';
 
@@ -43,13 +44,39 @@
 		onPageSizeChange?: (nextSize: number) => void;
 	} = $props();
 
-	function amountClass(type: Transaction['type']) {
+	const SORT_COLUMNS: Array<{ id: SortColumn; label: string }> = [
+		{ id: 'date', label: 'Date' },
+		{ id: 'description', label: 'Description' },
+		{ id: 'category', label: 'Category' },
+		{ id: 'account', label: 'Account' },
+		{ id: 'amount', label: 'Amount' }
+	];
+
+	function amountPillClass(type: Transaction['type']) {
 		return cn(
-			'font-label text-label-lg tabular-nums',
-			type === 'income' && 'text-on-income-container',
-			type === 'expense' && 'text-on-expense-container',
-			type === 'transfer' && 'text-theme-sky'
+			'font-title text-title-md sm:text-title-lg rounded-full px-3.5 py-1 tabular-nums whitespace-nowrap',
+			type === 'income' && 'bg-income text-on-income',
+			type === 'expense' && 'bg-coral text-on-coral',
+			type === 'transfer' && 'bg-periwinkle text-on-periwinkle'
 		);
+	}
+
+	function iconBubbleClass(type: Transaction['type'], idx: number) {
+		if (type === 'income') return 'bg-income text-on-income';
+		if (type === 'transfer') return 'bg-periwinkle text-on-periwinkle';
+		const tones = [
+			'bg-coral text-on-coral',
+			'bg-marigold text-on-marigold',
+			'bg-sage-cream text-on-sage-cream',
+			'bg-sky-mint text-on-sky-mint'
+		];
+		return tones[idx % tones.length];
+	}
+
+	function iconFor(type: Transaction['type']) {
+		if (type === 'income') return 'south_west';
+		if (type === 'transfer') return 'swap_horiz';
+		return 'receipt_long';
 	}
 
 	function amountPrefix(type: Transaction['type']) {
@@ -59,221 +86,207 @@
 	}
 </script>
 
-{#snippet sortHead(
-	column: SortColumn,
-	label: string,
-	options?: { align?: 'left' | 'right'; class?: string }
-)}
-	<th
-		scope="col"
-		aria-sort={sortBy === column ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
-		class={cn(
-			'font-label text-label-sm text-on-surface-variant px-gutter-md py-3 tracking-wider uppercase',
-			options?.align === 'right' && 'text-right',
-			options?.class
-		)}
-	>
-		<button
-			type="button"
-			onclick={() => onSort(column)}
-			class={cn(
-				'hover:text-on-surface inline-flex cursor-pointer items-center gap-1 uppercase transition-colors duration-state-change',
-				options?.align === 'right' && 'ml-auto'
-			)}
-		>
-			<span>{label}</span>
-			{#if sortBy === column}
-				<span class="material-symbols-outlined text-[15px]" aria-hidden="true">
-					{sortOrder === 'asc' ? 'arrow_upward' : 'arrow_downward'}
-				</span>
-			{/if}
-		</button>
-	</th>
-{/snippet}
+<div class="bg-surface-card border-outline-variant gap-gutter-md flex flex-col rounded-xl border p-4 sm:p-6">
+	<!-- Editorial Sort Strip -->
+	<div class="flex flex-wrap items-center justify-between gap-2">
+		<div class="flex flex-wrap items-center gap-1.5" role="group" aria-label="Sort transactions">
+			<span class="font-label text-label-sm text-on-surface-variant mr-1 uppercase">Sort:</span>
+			{#each SORT_COLUMNS as col (col.id)}
+				{@const active = sortBy === col.id}
+				<button
+					type="button"
+					onclick={() => onSort(col.id)}
+					aria-pressed={active}
+					class={cn(
+						'font-label text-label-sm inline-flex cursor-pointer items-center gap-1 rounded-full px-3 py-1 transition-colors duration-state-change',
+						active
+							? 'bg-pill-white text-on-pill-white'
+							: 'bg-surface-container text-on-surface-variant hover:text-on-surface'
+					)}
+				>
+					<span>{col.label}</span>
+					{#if active}
+						<span class="material-symbols-outlined text-[14px]" aria-hidden="true">
+							{sortOrder === 'asc' ? 'arrow_upward' : 'arrow_downward'}
+						</span>
+					{/if}
+				</button>
+			{/each}
+		</div>
+	</div>
 
-{#snippet categoryBadge(transaction: Transaction)}
-	{@const category = categoryFor(transaction)}
-	{#if transaction.type === 'transfer'}
-		<span class="bg-secondary-container text-on-secondary-container font-label text-label-sm inline-flex items-center gap-1 rounded-full px-2.5 py-0.5">
-			⇄ Transfer
-		</span>
-	{:else if category}
-		<button
-			type="button"
-			class="bg-primary-container text-on-primary-container font-label text-label-sm inline-flex max-w-full cursor-pointer items-center gap-1 rounded-full px-2.5 py-0.5 transition-opacity hover:opacity-90"
-			title={`Filter by ${category.name}`}
-			onclick={(e) => {
-				e.stopPropagation();
-				onFilterCategory(category.id);
-			}}
-		>
-			<span class="truncate">{category.emoji} {category.name}</span>
-		</button>
-	{:else}
-		<span class="bg-surface-container-low text-on-surface-variant font-label text-label-sm inline-flex items-center rounded-full px-2.5 py-0.5">
-			Uncategorized
-		</span>
-	{/if}
-{/snippet}
-
-{#snippet accountBadge(transaction: Transaction, dest: string | null)}
-	{#if dest}
-		<span
-			class="font-body text-body-md text-on-surface-variant inline-flex max-w-full items-center gap-1"
-			title={`${transaction.account} → ${dest}`}
-		>
-			<span class="truncate">{transaction.account} → {dest}</span>
-		</span>
-	{:else if transaction.account}
-		<button
-			type="button"
-			class="font-body text-body-md text-on-surface-variant hover:text-on-surface inline-flex max-w-full cursor-pointer items-center transition-colors"
-			title={`Filter by ${transaction.account}`}
-			onclick={(e) => {
-				e.stopPropagation();
-				onFilterAccount(transaction.account);
-			}}
-		>
-			<span class="truncate">{transaction.account}</span>
-		</button>
-	{:else}
-		<span class="font-body text-body-sm text-on-surface-variant">—</span>
-	{/if}
-{/snippet}
-
-<div class="bg-surface-card border-outline overflow-hidden rounded-md border">
-	<div class="overflow-x-auto">
-		<table class="w-full border-collapse text-left">
-			<thead>
-				<tr class="border-outline bg-surface-container-high border-b">
-					{@render sortHead('date', 'Date', { class: 'w-[96px]' })}
-					{@render sortHead('description', 'Description')}
-					{@render sortHead('category', 'Category', { class: 'hidden md:table-cell w-[180px]' })}
-					{@render sortHead('account', 'Account', { class: 'hidden lg:table-cell w-[170px]' })}
-					{@render sortHead('amount', 'Amount', { align: 'right', class: 'w-[140px]' })}
-					<th scope="col" class="font-label text-label-sm text-on-surface-variant w-[116px] px-gutter-md py-3 text-right tracking-wider uppercase">
-						Actions
-					</th>
-				</tr>
-			</thead>
-			<tbody class="divide-outline divide-y">
-				{#each transactions as transaction (transaction.id)}
-					{@const dest = getTransferDestination(transaction)}
-					<tr
-						class="group hover:bg-surface-container-low/60 cursor-pointer transition-colors duration-state-change"
-						tabindex={0}
-						onclick={() => onEdit(transaction)}
-						onkeydown={(e) => {
-							if (e.key === 'Enter' && e.target === e.currentTarget) onEdit(transaction);
-						}}
+	<!-- Editorial Bento Transaction Rows -->
+	<div class="gap-gutter-sm flex flex-col">
+		{#each transactions as transaction, idx (transaction.id)}
+			{@const category = categoryFor(transaction)}
+			{@const dest = getTransferDestination(transaction)}
+			<div
+				class="bg-surface-container hover:bg-surface-container/80 gap-gutter-sm sm:gap-gutter-md flex flex-wrap items-center justify-between rounded-lg p-3.5 sm:p-4 transition-colors duration-state-change cursor-pointer"
+				role="button"
+				tabindex={0}
+				onclick={() => onEdit(transaction)}
+				onkeydown={(e) => {
+					if (e.key === 'Enter' && e.target === e.currentTarget) onEdit(transaction);
+				}}
+			>
+				<div class="gap-gutter-md flex min-w-0 flex-1 items-center">
+					<span
+						class={cn(
+							'flex size-11 shrink-0 items-center justify-center rounded-full',
+							iconBubbleClass(transaction.type, idx)
+						)}
+						aria-hidden="true"
 					>
-						<td class="px-gutter-md py-3.5 whitespace-nowrap" title={formatDate(transaction.date)}>
-							<span class="font-body text-body-sm text-on-surface-variant tabular-nums">
+						{#if category?.emoji && transaction.type !== 'transfer'}
+							<span class="text-lg leading-none">{category.emoji}</span>
+						{:else}
+							<span class="material-symbols-outlined text-[20px]">{iconFor(transaction.type)}</span>
+						{/if}
+					</span>
+
+					<div class="min-w-0 flex-1">
+						<div class="font-title text-title-md text-on-surface truncate">
+							{transaction.description}
+						</div>
+						{#if transaction.notes}
+							<p class="font-body text-body-sm text-on-surface-variant line-clamp-1 mt-0.5">
+								{transaction.notes}
+							</p>
+						{/if}
+
+						<div class="gap-gutter-xs mt-1.5 flex flex-wrap items-center">
+							{#if transaction.type === 'transfer'}
+								<span class="bg-periwinkle text-on-periwinkle font-label text-label-sm rounded-full px-2.5 py-0.5">
+									⇄ Transfer
+								</span>
+							{:else if category}
+								<button
+									type="button"
+									class="bg-marigold text-on-marigold font-label text-label-sm cursor-pointer rounded-full px-2.5 py-0.5 transition-opacity hover:opacity-90"
+									title={`Filter by ${category.name}`}
+									onclick={(e) => {
+										e.stopPropagation();
+										onFilterCategory(category.id);
+									}}
+								>
+									{category.name}
+								</button>
+							{:else}
+								<span class="bg-surface-card text-on-surface-variant font-label text-label-sm rounded-full px-2.5 py-0.5">
+									Uncategorized
+								</span>
+							{/if}
+
+							{#if dest}
+								<span class="bg-sky-mint text-on-sky-mint font-label text-label-sm rounded-full px-2.5 py-0.5">
+									{transaction.account} → {dest}
+								</span>
+							{:else if transaction.account}
+								<button
+									type="button"
+									class="bg-sky-mint text-on-sky-mint font-label text-label-sm cursor-pointer rounded-full px-2.5 py-0.5 transition-opacity hover:opacity-90"
+									title={`Filter by ${transaction.account}`}
+									onclick={(e) => {
+										e.stopPropagation();
+										onFilterAccount(transaction.account);
+									}}
+								>
+									{transaction.account}
+								</button>
+							{/if}
+
+							<span
+								class="font-mono text-on-surface-variant text-[12px] tabular-nums"
+								title={formatDate(transaction.date)}
+							>
 								{formatShortDate(transaction.date)}
 							</span>
-						</td>
+						</div>
+					</div>
+				</div>
 
-						<td class="max-w-[220px] px-gutter-md py-3.5 sm:max-w-xs lg:max-w-md">
-							<div class="min-w-0">
-								<p class="font-title text-title-md text-on-surface truncate">
-									{transaction.description}
-								</p>
-								{#if transaction.notes}
-									<p class="font-body text-body-sm text-on-surface-variant line-clamp-1">
-										{transaction.notes}
-									</p>
-								{/if}
-								<div class="mt-1 flex flex-wrap items-center gap-1.5 lg:hidden">
-									<span class="md:hidden">
-										{@render categoryBadge(transaction)}
-									</span>
-									<span class="text-on-surface-variant text-xs">
-										{@render accountBadge(transaction, dest)}
-									</span>
-								</div>
-							</div>
-						</td>
-
-						<td class="hidden px-gutter-md py-3.5 whitespace-nowrap md:table-cell">
-							{@render categoryBadge(transaction)}
-						</td>
-
-						<td class="hidden px-gutter-md py-3.5 whitespace-nowrap lg:table-cell">
-							{@render accountBadge(transaction, dest)}
-						</td>
-
-						<td class="px-gutter-md py-3.5 text-right whitespace-nowrap">
-							<span class={amountClass(transaction.type)}>
-								{amountPrefix(transaction.type)}{formatMoney(transaction.amount, currency)}
+				<div class="gap-gutter-sm flex shrink-0 items-center">
+					<div class="flex flex-col items-end gap-1">
+						<span class={amountPillClass(transaction.type)}>
+							{amountPrefix(transaction.type)}{formatMoney(transaction.amount, currency)}
+						</span>
+						{#if transaction.currency && transaction.currency !== currency && transaction.originalAmount}
+							<span
+								class="bg-ink text-on-surface border-outline-variant font-mono rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tabular-nums"
+								title={transaction.exchangeRate ? `1 ${transaction.currency} = ${transaction.exchangeRate} ${currency}` : undefined}
+							>
+								{formatMoney(transaction.originalAmount, transaction.currency)}{transaction.exchangeRate
+									? ` · @${transaction.exchangeRate}`
+									: ''}
 							</span>
-						</td>
+						{/if}
+					</div>
 
-						<td class="px-gutter-md py-3.5 text-right whitespace-nowrap">
-							<div class="inline-flex items-center gap-0.5">
-								<button
-									type="button"
-									title="Edit"
-									aria-label={`Edit ${transaction.description}`}
-									onclick={(e) => {
-										e.stopPropagation();
-										onEdit(transaction);
-									}}
-									class="text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface cursor-pointer rounded p-1.5 transition-colors"
-								>
-									<span class="material-symbols-outlined text-[17px]" aria-hidden="true">edit</span>
-								</button>
-								<button
-									type="button"
-									title="Duplicate"
-									aria-label={`Duplicate ${transaction.description}`}
-									onclick={(e) => {
-										e.stopPropagation();
-										onDuplicate(transaction);
-									}}
-									class="text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface hidden cursor-pointer rounded p-1.5 transition-colors sm:inline-flex"
-								>
-									<span class="material-symbols-outlined text-[17px]" aria-hidden="true">
-										content_copy
-									</span>
-								</button>
-								<button
-									type="button"
-									title="Delete"
-									aria-label={`Delete ${transaction.description}`}
-									onclick={(e) => {
-										e.stopPropagation();
-										onDelete(transaction);
-									}}
-									class="text-on-surface-variant hover:bg-expense-container hover:text-on-expense-container cursor-pointer rounded p-1.5 transition-colors"
-								>
-									<span class="material-symbols-outlined text-[17px]" aria-hidden="true">delete</span>
-								</button>
-							</div>
-						</td>
-					</tr>
-				{/each}
-			</tbody>
-		</table>
+					<div class="flex items-center gap-1">
+						<button
+							type="button"
+							title="Duplicate"
+							aria-label={`Duplicate ${transaction.description}`}
+							onclick={(e) => {
+								e.stopPropagation();
+								onDuplicate(transaction);
+							}}
+							class="bg-surface-card text-on-surface-variant hover:bg-pill-white hover:text-on-pill-white hidden size-8 cursor-pointer items-center justify-center rounded-full transition-colors sm:inline-flex"
+						>
+							<span class="material-symbols-outlined text-[15px]" aria-hidden="true">content_copy</span>
+						</button>
+						<button
+							type="button"
+							title="Delete"
+							aria-label={`Delete ${transaction.description}`}
+							onclick={(e) => {
+								e.stopPropagation();
+								onDelete(transaction);
+							}}
+							class="bg-surface-card text-on-surface-variant hover:bg-coral hover:text-on-coral inline-flex size-8 cursor-pointer items-center justify-center rounded-full transition-colors"
+						>
+							<span class="material-symbols-outlined text-[15px]" aria-hidden="true">delete</span>
+						</button>
+						<button
+							type="button"
+							title="Edit"
+							aria-label={`Edit ${transaction.description}`}
+							onclick={(e) => {
+								e.stopPropagation();
+								onEdit(transaction);
+							}}
+							class="bg-pill-white text-on-pill-white inline-flex size-9 cursor-pointer items-center justify-center rounded-full transition-transform hover:scale-105"
+						>
+							<span class="material-symbols-outlined text-[16px]" aria-hidden="true">north_east</span>
+						</button>
+					</div>
+				</div>
+			</div>
+		{/each}
 	</div>
 
 	{#if onPageChange && onPageSizeChange && totalItems > 0}
-		<div class="border-outline bg-surface-container-high flex flex-wrap items-center justify-between gap-gutter-sm border-t px-gutter-md py-3">
+		<div class="border-outline-variant flex flex-wrap items-center justify-between gap-3 border-t pt-4">
 			<div class="flex items-center gap-2">
 				<label for="rows-per-page" class="font-body text-body-sm text-on-surface-variant">
 					Rows per page:
 				</label>
-				<select
-					id="rows-per-page"
-					value={pageSize}
-					onchange={(e) => onPageSizeChange(Number((e.target as HTMLSelectElement).value))}
-					class="border-outline bg-surface-card font-label text-label-sm text-on-surface rounded border px-2 py-1 outline-none focus:border-primary"
+				<Select.Root
+					type="single"
+					value={String(pageSize)}
+					onValueChange={(v) => onPageSizeChange(Number(v))}
 				>
-					<option value={15}>15</option>
-					<option value={25}>25</option>
-					<option value={50}>50</option>
-					<option value={100}>100</option>
-					<option value={0}>All</option>
-				</select>
+					<Select.Trigger id="rows-per-page" size="sm" class="h-8 w-auto min-w-[74px] px-3 py-1">
+						{pageSize === 0 ? 'All' : pageSize}
+					</Select.Trigger>
+					<Select.Content align="start" class="min-w-[90px]">
+						<Select.Item value="15" label="15">15</Select.Item>
+						<Select.Item value="25" label="25">25</Select.Item>
+						<Select.Item value="50" label="50">50</Select.Item>
+						<Select.Item value="100" label="100">100</Select.Item>
+						<Select.Item value="0" label="All">All</Select.Item>
+					</Select.Content>
+				</Select.Root>
 			</div>
 
 			<div class="flex items-center gap-1.5">
@@ -282,15 +295,15 @@
 					disabled={page <= 1}
 					onclick={() => onPageChange(page - 1)}
 					class={cn(
-						'border-outline font-label text-label-sm rounded border px-2.5 py-1 transition-colors',
+						'font-label text-label-sm rounded-full px-3.5 py-1.5 transition-colors',
 						page <= 1
-							? 'bg-surface-container-low text-on-surface-variant cursor-not-allowed opacity-60'
-							: 'bg-surface-card text-on-surface hover:bg-surface-container-low cursor-pointer'
+							? 'bg-surface-container text-on-surface-variant cursor-not-allowed opacity-50'
+							: 'bg-surface-container text-on-surface hover:bg-pill-white hover:text-on-pill-white cursor-pointer'
 					)}
 				>
 					Previous
 				</button>
-				<span class="bg-primary text-on-primary font-label text-label-sm inline-flex h-7 min-w-7 items-center justify-center rounded px-2 tabular-nums">
+				<span class="bg-pill-white text-on-pill-white font-mono text-mono-sm inline-flex h-8 min-w-8 items-center justify-center rounded-full px-2.5 tabular-nums">
 					{page}
 				</span>
 				{#if totalPages > 1}
@@ -303,10 +316,10 @@
 					disabled={page >= totalPages}
 					onclick={() => onPageChange(page + 1)}
 					class={cn(
-						'border-outline font-label text-label-sm rounded border px-2.5 py-1 transition-colors',
+						'font-label text-label-sm rounded-full px-3.5 py-1.5 transition-colors',
 						page >= totalPages
-							? 'bg-surface-container-low text-on-surface-variant cursor-not-allowed opacity-60'
-							: 'bg-surface-card text-on-surface hover:bg-surface-container-low cursor-pointer'
+							? 'bg-surface-container text-on-surface-variant cursor-not-allowed opacity-50'
+							: 'bg-surface-container text-on-surface hover:bg-pill-white hover:text-on-pill-white cursor-pointer'
 					)}
 				>
 					Next

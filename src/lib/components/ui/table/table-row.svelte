@@ -15,7 +15,7 @@
 
 <tr
 	data-slot="table-row"
-	class={cn('border-border hover:bg-muted/50 border-b transition-colors', className)}
+	class={cn('border-outline-variant hover:bg-surface-container/70 border-b transition-colors', className)}
 	{...rest}
 >
 	{@render children?.()}

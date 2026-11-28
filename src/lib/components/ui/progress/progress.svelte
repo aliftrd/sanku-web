@@ -26,11 +26,11 @@
 	aria-valuemax={max}
 	aria-valuenow={value}
 	data-slot="progress"
-	class={cn('bg-secondary relative h-2 w-full overflow-hidden rounded-full', className)}
+	class={cn('bg-surface relative h-3 w-full overflow-hidden rounded-full', className)}
 >
 	<div
 		data-slot="progress-indicator"
-		class={cn('bg-primary h-full transition-all duration-300', indicatorClass)}
+		class={cn('bg-income h-full rounded-full transition-all duration-300', indicatorClass)}
 		style={`width: ${percentage}%; ${indicatorStyle}`}
 	></div>
 </div>

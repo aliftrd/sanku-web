@@ -25,7 +25,7 @@
 		name?: string;
 		onchange?: (value: string) => void;
 		size?: 'sm' | 'md';
-		variant?: 'default' | 'ghost';
+		variant?: 'default' | 'ghost' | 'pill-white';
 		class?: string;
 		align?: 'left' | 'right';
 	} = $props();
@@ -126,14 +126,20 @@
 		aria-haspopup="listbox"
 		aria-expanded={open}
 		class={cn(
-			'text-foreground flex w-full cursor-pointer items-center justify-between gap-2 text-left font-medium transition-colors outline-none',
-			'focus-visible:ring-ring/30 focus-visible:ring-2',
+			'flex w-full cursor-pointer items-center justify-between gap-2 text-left transition-colors outline-none',
+			'focus-visible:ring-primary/40 focus-visible:ring-2',
 			variant === 'default' &&
-				'border-input bg-card hover:bg-accent/60 rounded-md border shadow-2xs',
-			variant === 'ghost' && 'hover:bg-accent rounded-md border-transparent bg-transparent',
-			size === 'sm' && (variant === 'ghost' ? 'h-7 px-2 text-xs' : 'h-8 px-2.5 text-xs'),
-			size === 'md' && 'h-9 px-3 text-sm',
-			open && variant === 'default' && 'border-ring/50 bg-accent/40'
+				'border-outline-variant bg-surface-container text-on-surface hover:bg-surface-container/80 rounded border font-medium',
+			variant === 'ghost' &&
+				'text-on-surface hover:bg-surface-container rounded-full border border-transparent bg-transparent font-medium',
+			variant === 'pill-white' &&
+				'bg-pill-white text-on-pill-white hover:opacity-90 rounded-full border border-transparent font-headline uppercase tracking-wide',
+			size === 'sm' &&
+				(variant === 'ghost' || variant === 'pill-white'
+					? 'h-8 px-2.5 text-label-lg'
+					: 'h-9 px-3 text-body-sm'),
+			size === 'md' && 'h-10 px-3.5 text-body-md',
+			open && variant === 'default' && 'border-primary/60'
 		)}
 	>
 		<div class="flex min-w-0 items-center gap-2">
@@ -142,25 +148,29 @@
 					<span class="shrink-0 text-sm leading-none">{selectedOption.icon}</span>
 				{/if}
 				{#if selectedOption.color}
-					<span class="size-2 shrink-0 rounded-full" style={`background: ${selectedOption.color}`}></span>
+					<span class="size-2.5 shrink-0 rounded-full border border-ink/30" style={`background: ${selectedOption.color}`}></span>
 				{/if}
 				<span class="truncate">{selectedOption.label}</span>
 				{#if selectedOption.badge}
-					<span class="bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold">
+					<span class="bg-ink text-on-surface shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold">
 						{selectedOption.badge}
 					</span>
 				{/if}
 			{:else}
-				<span class="text-muted-foreground truncate">{placeholder}</span>
+				<span class="text-on-surface-variant truncate">{placeholder}</span>
 			{/if}
 		</div>
 
 		<svg
-			class={cn('text-muted-foreground size-3.5 shrink-0 transition-transform duration-150', open && 'rotate-180')}
+			class={cn(
+				'size-3.5 shrink-0 transition-transform duration-150',
+				variant === 'pill-white' ? 'text-on-pill-white/75' : 'text-on-surface-variant',
+				open && 'rotate-180'
+			)}
 			viewBox="0 0 16 16"
 			aria-hidden="true"
 		>
-			<path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+			<path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
 		</svg>
 	</button>
 
@@ -168,17 +178,19 @@
 		<div
 			bind:this={dropdownEl}
 			style={dropdownStyle}
-			class="bg-popover text-popover-foreground border-border z-[120] overflow-hidden rounded-lg border shadow-xl"
+			class="bg-surface-card text-on-surface border-outline-variant z-[120] overflow-hidden rounded-lg border shadow-2xl"
 			role="listbox"
 		>
-			<div class="max-h-60 overflow-y-auto p-1">
+			<div class="max-h-60 overflow-y-auto p-1.5">
 				{#each options as option (option.value)}
 					{@const isSelected = option.value === value}
 					<button
 						type="button"
 						class={cn(
-							'hover:bg-accent hover:text-accent-foreground flex w-full cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 py-1.5 text-left text-xs transition-colors sm:text-sm',
-							isSelected && 'bg-accent/80 font-semibold'
+							'flex w-full cursor-pointer items-center justify-between gap-3 rounded-sm px-3 py-2 text-left text-body-sm transition-colors sm:text-body-md',
+							isSelected
+								? 'bg-pill-white text-on-pill-white font-bold'
+								: 'text-on-surface hover:bg-surface-container'
 						)}
 						role="option"
 						aria-selected={isSelected}
@@ -189,26 +201,31 @@
 								<span class="shrink-0 text-sm leading-none">{option.icon}</span>
 							{/if}
 							{#if option.color}
-								<span class="size-2 shrink-0 rounded-full" style={`background: ${option.color}`}></span>
+								<span class="size-2.5 shrink-0 rounded-full" style={`background: ${option.color}`}></span>
 							{/if}
 							<div class="flex min-w-0 flex-col">
 								<span class="truncate">{option.label}</span>
 								{#if option.subtext}
-									<span class="text-muted-foreground text-[11px]">{option.subtext}</span>
+									<span class={cn('text-[11px]', isSelected ? 'text-on-pill-white/70' : 'text-on-surface-variant')}>
+										{option.subtext}
+									</span>
 								{/if}
 							</div>
 						</div>
 
 						<div class="flex shrink-0 items-center gap-1.5">
 							{#if option.badge}
-								<span class="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-semibold">
+								<span
+									class={cn(
+										'rounded-full px-2 py-0.5 text-[10px] font-bold',
+										isSelected ? 'bg-ink text-on-surface' : 'bg-surface text-on-surface-variant'
+									)}
+								>
 									{option.badge}
 								</span>
 							{/if}
 							{#if isSelected}
-								<svg class="size-3.5 shrink-0 text-emerald-600" viewBox="0 0 16 16" aria-hidden="true">
-									<path d="M13.5 4.5 6 12 2.5 8.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-								</svg>
+								<span class="material-symbols-outlined text-ink text-[16px]" aria-hidden="true">check</span>
 							{/if}
 						</div>
 					</button>
